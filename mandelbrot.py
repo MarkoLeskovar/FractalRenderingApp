@@ -1,8 +1,9 @@
-import os
 import numba
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+# Compute the Mandelbrot set
 @numba.njit(cache=True)
 def ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter):
 
@@ -36,36 +37,39 @@ def ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter):
 	return img_output
 
 
+# Create cyclic coloring scheme
+@numba.njit(cache=True)
+def ColorFractal(iterations, a=0.1, b=2.094):
+	iterations_mul_a = a * iterations
+	red = np.sin(iterations_mul_a)
+	green = np.sin(iterations_mul_a + b)
+	blue = np.sin(iterations_mul_a + 2.0 * b)
+	image = 0.5 * np.dstack((red, green, blue)) + 0.5
+	return (image * 255).astype('uint8')
+
+
+# TODO : Add time-it function
+# TODO : Re-name the functions to have more uniform and descriptive names
+# TODO : Play around with fractal coloring options
+# TODO : Add smooth-iteration function for fractal coloring
+# TODO : Make multiple versions of "ComputeMandelbrotSet" and make it much faster with C++ and OpenMP
+
 # Define main function
 def main():
 
-	# Mandelbrot Set settings
+	# Fractal settings
 	bounds_x = np.asarray([-2.0, 1.0])
 	bounds_y = np.asarray([-1.5, 1.5])
-	resolution = np.asarray([1000, 1000])
-
-	# # Create sampling positions
-	# sampling_points = np.zeros(shape=(resolution[0] * resolution[1], 2), dtype='float')
-	# pix_size_x = (bounds_x[1] - bounds_x[0]) / resolution[0]
-	# pix_size_y = (bounds_y[1] - bounds_y[0]) / resolution[1]
-	# n = 0
-	# for i in range(resolution[0]):
-	# 	temp_x = bounds_x[0] + 0.5 * pix_size_x + i * pix_size_x
-	# 	for j in range(resolution[1]):
-	# 		temp_y = bounds_y[0] + 0.5 * pix_size_y + j * pix_size_y
-	# 		sampling_points[n, 0] = temp_x
-	# 		sampling_points[n, 1] = temp_y
-	# 		n += 1
-
-
-	# Create a random image
+	resolution = np.asarray([1200, 800])
 	max_iter = 200
-	img = ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter)
+
+	# Fractal computation and coloring
+	iterations = ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter)
+	image = ColorFractal(iterations)
 
 	# Show the image
 	extent = np.hstack((bounds_x, bounds_y))
-	plt.imshow(img, cmap='viridis', interpolation='none', extent=extent, origin='upper')
-	# plt.plot(sampling_points[:, 0], sampling_points[:, 1], 'ro')
+	plt.imshow(image, cmap='viridis', interpolation='none', extent=extent, origin='upper')
 	plt.show()
 
 

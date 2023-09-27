@@ -1,15 +1,22 @@
 import sys
+import time
 import ctypes
 import pygame
 import numpy as np
 import tkinter as tk
 
+from mandelbrot import ComputeMandelbrotSet, ColorFractal
+
+
 # Make the application aware of the DPI scaling
 if sys.platform == 'win32':
    ctypes.windll.user32.SetProcessDPIAware()
 
-from mandelbrot import ComputeMandelbrotSet
 # TODO : Add functionality so that scale doesn't reset on windows resize
+# TODO : Add a display for mouse cursor position
+# TODO : Add a display to show the number of iterations
+# TODO : Add functionality so that mandelbrot only updates when necessary
+# TODO : Add functionality to save a screenshot photo with metadata
 
 class MainApp:
 
@@ -41,7 +48,6 @@ class MainApp:
         self.init_pan_and_zoom()
 
         # Initialize drawing surfaces
-        self.surf_background = pygame.Surface(self.win_size)
         self.surf_foreground = pygame.Surface(self.win_size, pygame.SRCALPHA, 32).convert_alpha()
 
         # Run the render loop
@@ -84,7 +90,7 @@ class MainApp:
 
         # Initialize scaling variable
         self.scale_min = 0.5
-        self.scale_max = 1.0e6
+        self.scale_max = 1.0e9
         self.scale_step = 1.01
         self.scale_default = 1.0 / self.pix_size
         self.scale = self.scale_default
@@ -110,7 +116,6 @@ class MainApp:
                 self.needs_updating = True
                 self.win_size = pygame.display.get_window_size()
                 self.window = self.create_window(self.win_size)
-                self.surf_background = pygame.Surface(self.win_size)
                 self.surf_foreground = pygame.Surface(self.win_size, pygame.SRCALPHA, 32).convert_alpha()
                 self.init_pan_and_zoom()
             # Key strokes
@@ -123,14 +128,14 @@ class MainApp:
                     self.show_axis = not self.show_axis
                 # Increase max iterations
                 if event.key == pygame.K_KP_PLUS:
-                    self.max_iter += 10
-                    if self.max_iter > 1000:
-                        self.max_iter = 1000
+                    self.max_iter += 50
+                    if self.max_iter > 5000:
+                        self.max_iter = 5000
                 # Decrease max iterations
                 if event.key == pygame.K_KP_MINUS:
-                    self.max_iter -= 10
-                    if self.max_iter < 10:
-                        self.max_iter = 10
+                    self.max_iter -= 50
+                    if self.max_iter < 50:
+                        self.max_iter = 50
 
 
     def process_pan_and_zoom(self):
@@ -200,22 +205,26 @@ class MainApp:
 
     def show_window_info(self, surface, color):
 
-        # Show frames per second
-        temp_text = f'FPS : {int(self.clock.get_fps())}'
+        # Show computation time per second
+        temp_text = f'TIME : {self.comp_time}'
         surface.blit(self.font.render(temp_text, False, color), (0, 0))
+
+        # Show frames per second
+        temp_text = f'FPS  : {int(self.clock.get_fps())}'
+        surface.blit(self.font.render(temp_text, False, color), (0, self.font_size))
 
         # Show window resolution
         temp_text = f'SIZE : {self.win_size[0]} x {self.win_size[1]}'
-        surface.blit(self.font.render(temp_text, False, color), (0, self.font_size))
+        surface.blit(self.font.render(temp_text, False, color), (0, 2 * self.font_size))
 
         # Show scaling factor
         temp_scale = self.scale / self.scale_default
         temp_text = f'ZOOM : {temp_scale:.2f}'
-        surface.blit(self.font.render(temp_text, False, color), (0, 2 * self.font_size))
-
-        # Show number of iterations
-        temp_text = f'ITER : {self.max_iter}'
         surface.blit(self.font.render(temp_text, False, color), (0, 3 * self.font_size))
+
+        # Show max number of iterations
+        temp_text = f'ITER : {self.max_iter}'
+        surface.blit(self.font.render(temp_text, False, color), (0, 4 * self.font_size))
 
 
     def show_coordinate_axis(self, surface, color):
@@ -240,13 +249,11 @@ class MainApp:
 
     def render_loop(self):
 
+        self.comp_time = 0.0
+
         # Create a test surface
         test_image = pygame.image.load('assets/cat.png').convert_alpha()
         test_image = pygame.transform.scale(test_image, (200, 200))
-
-        # Image extent
-        TL_s = np.asarray([0, 0])
-        BR_s = np.asarray([self.win_size[0], self.win_size[1]])
 
         # Main render loop
         while self.is_running:
@@ -256,42 +263,44 @@ class MainApp:
             self.process_pan_and_zoom()
 
             # Fill surfaces
-            self.surf_background.fill('black')
+            self.window.fill('blue')
             self.surf_foreground.fill((0, 0, 0, 0))
 
             # Display information and coordinate axis
             if self.show_info:
                 self.show_window_info(self.surf_foreground, pygame.color.THECOLORS['white'])
             if self.show_axis:
-                self.show_coordinate_axis(self.surf_foreground, pygame.color.THECOLORS['green'])
+                self.show_coordinate_axis(self.surf_foreground, pygame.color.THECOLORS['white'])
 
-            # Get bounds
-            TL_w = self.s2w(TL_s)
-            BR_w = self.s2w(BR_s)
+            # Get fractal bounds
+            TL_w = self.s2w(np.asarray([0, 0]))
+            BR_w = self.s2w(np.asarray([self.win_size[0], self.win_size[1]]))
             x_bounds = np.asarray([TL_w[0], BR_w[0]])
             y_bounds = np.asarray([TL_w[1], BR_w[1]])
 
-            # TODO : Implement some coloring scheme
-
-            # Compute the set
+            # # Compute the fractal
+            # t0 = time.time()
             # iterations = ComputeMandelbrotSet(x_bounds, y_bounds, np.asarray(self.win_size), self.max_iter)
+            # self.comp_time = time.time() - t0
+            # image = ColorFractal(iterations.transpose())
+            # image = pygame.surfarray.make_surface(image)
 
             # DEBUG - Draw a line set
             line_points = np.asarray([[-2.5, -1.5], [-2.5, 1.5], [1.5, 1.5], [1.5, -1.5], [-2.5, -1.5]])
             for i in range(line_points.shape[0] - 1):
                 temp_start = self.w2s(line_points[i, :])
                 temp_end = self.w2s(line_points[i + 1, :])
-                pygame.draw.line(self.surf_background, pygame.color.THECOLORS['yellow'], temp_start, temp_end, 2)
+                pygame.draw.line(self.window, pygame.color.THECOLORS['yellow'], temp_start, temp_end, 2)
 
+            # DEBUG - Show cat when screen needs updating
             if self.needs_updating:
-                self.surf_background.blit(test_image, (0, 0))
-
+                self.surf_foreground.blit(test_image, (0, 0))
 
             # Change updating flag
             self.needs_updating = False
 
             # Blit surfaces
-            self.window.blit(self.surf_background, (0, 0))
+            # self.window.blit(image, (0, 0))
             self.window.blit(self.surf_foreground, (0, 0))
 
             # Update clock and screen
@@ -301,4 +310,4 @@ class MainApp:
 
 
 if __name__ == "__main__":
-    app = MainApp(window_size=(1600, 1200), font_size=50)
+    app = MainApp(window_size=(600, 400), font_size=20)
