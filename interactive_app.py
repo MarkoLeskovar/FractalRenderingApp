@@ -13,8 +13,6 @@ from mandelbrot import ComputeMandelbrotSet
 # if sys.platform == 'win32':
 #    ctypes.windll.user32.SetProcessDPIAware()
 
-
-# TODO : 01. Hide coordinate axis markings if not in the visible region
 # TODO : Add a display to show the number of iterations
 # TODO : Add functionality so that mandelbrot only updates when necessary
 # TODO : Add functionality to save a screenshot photo with metadata
@@ -117,7 +115,7 @@ class MainApp:
         TL_w = self.s2w(np.asarray([0.0, 0.0]))
         BR_W = self.s2w(np.asarray(self.win_size))
         range_x = [TL_w[0], BR_W[0]]
-        range_y = [TL_w[1], BR_W[1]]
+        range_y = [BR_W[1], TL_w[1]]
         return range_x, range_y
 
 
@@ -201,7 +199,7 @@ class MainApp:
 
     def window_shift(self):
         delta_shift = self.mp_s - self.mp_s_previous
-        if (delta_shift[0] != 0.0) or (delta_shift[0] != 0.0):
+        if (delta_shift[0] != 0.0) or (delta_shift[1] != 0.0):
             self.needs_updating = True
             self.shift += delta_shift
 
@@ -307,10 +305,15 @@ class MainApp:
         text_y_min = self.font.render('-Im', False, color)
 
         # Blit the surfaces
-        surface.blit(text_x_max, (self.win_size[0] - text_x_max.get_size()[0], center_point[1]))
-        surface.blit(text_x_min, (0, center_point[1]))
-        surface.blit(text_y_max, (center_point[0], 0))
-        surface.blit(text_y_min, (center_point[0], self.win_size[1] - text_y_min.get_size()[1]))
+        temp_range_x, temp_range_y = self.get_window_range()
+        if temp_range_x[1] > 0.0:
+            surface.blit(text_x_max, (self.win_size[0] - text_x_max.get_size()[0], center_point[1]))
+        if temp_range_x[0] < 0.0:
+            surface.blit(text_x_min, (0, center_point[1]))
+        if temp_range_y[1] > 0.0:
+            surface.blit(text_y_max, (center_point[0], 0))
+        if temp_range_y[0] < 0.0:
+            surface.blit(text_y_min, (center_point[0], self.win_size[1] - text_y_min.get_size()[1]))
 
 
     def render_loop(self):
@@ -318,7 +321,7 @@ class MainApp:
         # Initialize the image
         range_x, range_y = self.get_window_range()
         img_fractal_iter = ComputeMandelbrotSet(np.asarray(range_x), np.asarray(range_y), np.asarray(self.win_size), self.num_iter)
-        img_fractal_color = ColorFractal(img_fractal_iter.transpose())
+        img_fractal_color = np.fliplr(ColorFractal(img_fractal_iter.transpose()))
         surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
 
         # Create a test surface
@@ -344,25 +347,25 @@ class MainApp:
                 self.foreground.blit(refresh_icon, (self.win_size[0] - self.font_size, 0))
 
             # Compute the image
-            # t0 = time.time()
-            # range_x, range_y = self.get_window_range()
-            # img_fractal_iter = ComputeMandelbrotSet(np.asarray(range_x), np.asarray(range_y), np.asarray(self.win_size), self.num_iter)
-            # img_fractal_color = ColorFractal(img_fractal_iter.transpose())
-            # surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
-            # self.render_time = time.time() - t0
+            t0 = time.time()
+            range_x, range_y = self.get_window_range()
+            img_fractal_iter = ComputeMandelbrotSet(np.asarray(range_x), np.asarray(range_y), np.asarray(self.win_size), self.num_iter)
+            img_fractal_color = np.fliplr(ColorFractal(img_fractal_iter.transpose()))
+            surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
+            self.render_time = time.time() - t0
 
             # DEBUG - Draw a line set
-            line_points = np.asarray([[-2.5, -1.5], [-2.5, 1.5], [1.5, 1.5], [1.5, -1.5], [-2.5, -1.5]])
-            for i in range(line_points.shape[0] - 1):
-                temp_start = self.w2s(line_points[i, :])
-                temp_end = self.w2s(line_points[i + 1, :])
-                pygame.draw.line(self.window, pygame.color.THECOLORS['red'], temp_start, temp_end, 2)
+            # line_points = np.asarray([[-2.5, -1.5], [-2.5, 1.5], [1.5, 1.5], [1.5, -1.5], [-2.5, -1.5]])
+            # for i in range(line_points.shape[0] - 1):
+            #     temp_start = self.w2s(line_points[i, :])
+            #     temp_end = self.w2s(line_points[i + 1, :])
+            #     pygame.draw.line(self.window, pygame.color.THECOLORS['red'], temp_start, temp_end, 2)
 
             # Change updating flag
             self.needs_updating = False
 
             # Blit surfaces and flip display
-            # self.window.blit(surf_fractal, (0, 0))
+            self.window.blit(surf_fractal, (0, 0))
             self.window.blit(self.foreground, (0, 0))
             pygame.display.flip()
 
