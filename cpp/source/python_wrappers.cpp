@@ -13,14 +13,16 @@ PYBIND11_MODULE(CMAKE_MODULE_NAME, m)
 {
 	m.doc() = "Python wrappers for geometry processing C++ functions";
 
-	
 	m.def("omp_GetMaxThreads", &omp_get_max_threads, "Returns max number of threads");
 
 	m.def("omp_SetNumThreads", &omp_set_num_threads, "Set number of threads",
 			py::arg("num_threads"));
 
-	m.def("addTwoInts", &addTwoInts, "Add two interger numbers",
-			py::arg("a"),
-			py::arg("b"));
+	m.def("ComputeMandelbrotSet", &ComputeMandelbrotSet, "Compute Mandelbrot set",
+			py::arg("range_x"),
+			py::arg("range_y"),
+			py::arg("resolution"),
+			py::arg("max_iter"));
+
 
 }              

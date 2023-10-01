@@ -1,8 +1,7 @@
 import os
-import datetime
 import time
-
 import numba
+import datetime
 import numpy as np
 from PIL import Image
 from PIL import ImageDraw
@@ -14,22 +13,17 @@ path_to_output = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRende
 if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
-# DEBUG
-import mandelbrot_cpp
-
 # Compute the Mandelbrot set
-@numba.njit(cache=True)
-def ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter):
+@numba.njit(cache=True, parallel=True)
+def ComputeMandelbrotSet(output_image, bounds_x, bounds_y, max_iter):
 
 	# Compute image physical dimensions
+	resolution = output_image.shape[::-1]
 	pix_size_x = (bounds_x[1] - bounds_x[0]) / resolution[0]
 	pix_size_y = (bounds_y[1] - bounds_y[0]) / resolution[1]
 
-	# Initialize the output image
-	img_output = np.zeros(shape=(resolution[1], resolution[0]), dtype='uint16')
-
 	# Loop over each pixel
-	for i in range(resolution[1]):
+	for i in numba.prange(resolution[1]):
 		y0 = bounds_y[0] + 0.5 * pix_size_y + i * pix_size_y
 		for j in range(resolution[0]):
 			x0 = bounds_x[0] + 0.5 * pix_size_x + j * pix_size_x
@@ -40,19 +34,15 @@ def ComputeMandelbrotSet(bounds_x, bounds_y, resolution, max_iter):
 			x2 = 0.0
 			y2 = 0.0
 			num_iter = 0
-			while (x2 + y2 <= 4.0) and (num_iter < max_iter):
-				y = 2.0 * x * y + y0
-				# y = (x + x) * y + y0
+			while (x2 + y2 <= 4.0) and (num_iter <= max_iter):
+				y = 2 * x * y + y0
 				x = x2 - y2 + x0
 				x2 = x * x
 				y2 = y * y
 				num_iter += 1
 
 			# Assign iterations to correct pixel
-			img_output[i, j] = num_iter
-
-	# Return results
-	return img_output
+			output_image[i, j] = num_iter
 
 
 # Create cyclic coloring scheme
@@ -96,19 +86,22 @@ def main():
 	range_x = np.asarray([-2.0, 1.0])
 	range_y = np.asarray([-1.5, 1.5])
 	resolution = np.asarray([1000, 1000])
-	num_iter = 200
+	num_iter = 2000
+
+	# Initialize output image
+	iterations = np.empty(shape=resolution[::-1], dtype='int')
 
 	# Fractal computation and coloring
 	t0 = time.time()
-	iterations = ComputeMandelbrotSet(range_x, range_y, resolution, num_iter)
+	ComputeMandelbrotSet(iterations, range_x, range_y, num_iter)
 	image = ColorFractal(iterations)
 	t1 = time.time()
 	print(f'Total time : {t1 - t0}')
 
-	# # Evaluate function run time
-	# # mean_time, std = TimeIt(10, ColorFractal, iterations)
-	# mean_time, std = TimeIt(10, ComputeMandelbrotSet, range_x, range_y, resolution, num_iter)
-	# print(f'Run time : {mean_time:.5f}s +/- {std:.5f}s')
+	# Evaluate function run time
+	mean_time, std = TimeIt(10, ComputeMandelbrotSet, iterations, range_x, range_y, num_iter)
+	print(f'Run time : {mean_time:.5f}s +/- {std:.5f}s')
+
 
 	# Show the image
 	extent = np.hstack((range_x, range_y))

@@ -55,7 +55,8 @@ class MainApp:
         self.mp_s = np.asarray([0, 0], dtype='uint')
         self.mp_s_previous = self.mp_s.copy()
 
-        # Initialize drawing surface
+        # Initialize images and drawing surface
+        self.fractal_iterations = np.empty(shape=self.win_size[::-1], dtype='int')
         self.foreground = pygame.Surface(self.win_size, pygame.SRCALPHA, 32).convert_alpha()
 
         # Run the main render loop
@@ -191,6 +192,7 @@ class MainApp:
         # Update variables
         self.win_size = pygame.display.get_window_size()
         self.window = self.create_window(self.win_size)
+        self.fractal_iterations = np.empty(shape=self.win_size[::-1], dtype='int')
         self.foreground = pygame.Surface(self.win_size, pygame.SRCALPHA, 32).convert_alpha()
         # Update pan and shift
         self.shift_default, self.scale_default = self.compute_shift_and_scale(self.range_x_default, (0.0, 0.0), self.win_size)
@@ -320,8 +322,8 @@ class MainApp:
 
         # Initialize the image
         range_x, range_y = self.get_window_range()
-        img_fractal_iter = ComputeMandelbrotSet(np.asarray(range_x), np.asarray(range_y), np.asarray(self.win_size), self.num_iter)
-        img_fractal_color = np.fliplr(ColorFractal(img_fractal_iter.transpose()))
+        ComputeMandelbrotSet(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
+        img_fractal_color = np.fliplr(ColorFractal(self.fractal_iterations.T))
         surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
 
         # Create a test surface
@@ -349,17 +351,10 @@ class MainApp:
             # Compute the image
             t0 = time.time()
             range_x, range_y = self.get_window_range()
-            img_fractal_iter = ComputeMandelbrotSet(np.asarray(range_x), np.asarray(range_y), np.asarray(self.win_size), self.num_iter)
-            img_fractal_color = np.fliplr(ColorFractal(img_fractal_iter.transpose()))
+            ComputeMandelbrotSet(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
+            img_fractal_color = np.fliplr(ColorFractal(self.fractal_iterations.T))
             surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
             self.render_time = time.time() - t0
-
-            # DEBUG - Draw a line set
-            # line_points = np.asarray([[-2.5, -1.5], [-2.5, 1.5], [1.5, 1.5], [1.5, -1.5], [-2.5, -1.5]])
-            # for i in range(line_points.shape[0] - 1):
-            #     temp_start = self.w2s(line_points[i, :])
-            #     temp_end = self.w2s(line_points[i + 1, :])
-            #     pygame.draw.line(self.window, pygame.color.THECOLORS['red'], temp_start, temp_end, 2)
 
             # Change updating flag
             self.needs_updating = False

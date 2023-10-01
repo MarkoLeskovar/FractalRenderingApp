@@ -4,7 +4,10 @@
 #include <vector>
 #include <Eigen/Dense>
 
-int addTwoInts(const int &a, const int &b);
 
+Eigen::MatrixXi ComputeMandelbrotSet(const Eigen::Vector2d &range_x,
+                                     const Eigen::Vector2d &range_y,
+                                     const Eigen::Vector2i &resolution,
+                                     const int &max_iter);
 
 #endif // MANDELBROT
