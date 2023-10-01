@@ -28,6 +28,6 @@ set(HEADER_FILES mandelbrot.h)
 set(SOURCE_FILES mandelbrot.cpp)
 
 # Add a pybind11 module
-pybind11_add_module(${MODULE_NAME} MODULE python_wrappers.cpp "${HEADER_FILES}" "${SOURCE_FILES}")
+pybind11_add_module(${MODULE_NAME} MODULE wrappers.cpp "${HEADER_FILES}" "${SOURCE_FILES}")
 target_link_libraries(${MODULE_NAME} PRIVATE OpenMP::OpenMP_CXX)
 #target_compile_options(${MODULE_NAME} PRIVATE -O3 -march=native)
