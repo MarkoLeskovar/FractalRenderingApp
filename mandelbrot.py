@@ -14,6 +14,8 @@ path_to_output = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRende
 if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
+# DEBUG
+import mandelbrot_cpp
 
 # Compute the Mandelbrot set
 @numba.njit(cache=True)
