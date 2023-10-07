@@ -165,17 +165,17 @@ class MainApp:
             # Mouse wheel movement
             if event.type == pygame.MOUSEWHEEL:
                 if event.y == 1:
-                    self.window_zoom_in(2.0 * self.scale_step)
+                    self.window_scale_increase(2.0 * self.scale_step)
                 if event.y == -1:
-                    self.window_zoom_out(2.0 * self.scale_step)
+                    self.window_scale_decrease(2.0 * self.scale_step)
 
         # Process shift and scale
         if (pressed_mouse_keys[0] == True):
             self.window_shift()
         if (pressed_keyboard_keys[pygame.K_UP]):
-            self.window_zoom_in(self.scale_step)
+            self.window_scale_increase(self.scale_step)
         if (pressed_keyboard_keys[pygame.K_DOWN]):
-            self.window_zoom_out(self.scale_step)
+            self.window_scale_decrease(self.scale_step)
 
         # Update previous mouse pointer position
         self.mp_s_previous = self.mp_s
@@ -206,7 +206,7 @@ class MainApp:
             self.shift += delta_shift
 
 
-    def window_zoom_in(self, scale_step):
+    def window_scale_increase(self, scale_step):
         self.needs_updating = True
         temp_MP_w_start = self.s2w(self.mp_s)  # Starting position for the mouse
         self.scale *= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
@@ -215,7 +215,7 @@ class MainApp:
         self.shift += self.w2s(self.s2w(self.mp_s)) - self.w2s(temp_MP_w_start)  # Correct position by panning
 
 
-    def window_zoom_out(self, scale_step):
+    def window_scale_decrease(self, scale_step):
         self.needs_updating = True
         temp_MP_w_start = self.s2w(self.mp_s)  # Starting position for the mouse
         self.scale *= 1.0 / (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
