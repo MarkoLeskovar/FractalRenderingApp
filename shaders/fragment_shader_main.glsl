@@ -14,7 +14,7 @@ out float iterations;
 
 
 // FUNCITON - Compute physical coordinate of the pixel
-dvec2 GetPixelCoordinate(dvec2 pix_size, dvec2 range_x, dvec2 range_y)
+dvec2 ComputePixelCoordinate(dvec2 pix_size, dvec2 range_x, dvec2 range_y)
 {
     double x0 = range_x[0] + 0.5 * pix_size[0] + gl_FragCoord.x * pix_size[0];
     double y0 = range_y[0] + 0.5 * pix_size[0] + gl_FragCoord.y * pix_size[1];
@@ -23,7 +23,7 @@ dvec2 GetPixelCoordinate(dvec2 pix_size, dvec2 range_x, dvec2 range_y)
 
 
 // FUNCTION - Compute number of iterations
-float GetIterationsMandelbrotSet(dvec2 pix_coord, int max_iter)
+float ComputeIterationCountMandelbrotSet(dvec2 pix_coord, int max_iter)
 {
     // Initialize variables
     double x = 0.0;
@@ -32,7 +32,7 @@ float GetIterationsMandelbrotSet(dvec2 pix_coord, int max_iter)
     double y2 = 0.0;
     int iter = 0;
     // Evaluate number of iterations
-    while ((x2 + y2 <= 4.0) && (iter <= max_iter))
+    while ((x2 + y2 <= 4.0) && (iter < max_iter))
     {
         y = 2 * x * y + pix_coord.y;
     	x = x2 - y2 + pix_coord.x;
@@ -49,11 +49,11 @@ float GetIterationsMandelbrotSet(dvec2 pix_coord, int max_iter)
 void main()
 {
     // Compute pixel coordinate
-    dvec2 pixel_coordinate = GetPixelCoordinate(pix_size, range_x, range_y);
+    dvec2 pixel_coordinate = ComputePixelCoordinate(pix_size, range_x, range_y);
 
     // Compute iteration count
-    float num_iter = GetIterationsMandelbrotSet(pixel_coordinate, max_iter);
+    iterations = ComputeIterationCountMandelbrotSet(pixel_coordinate, max_iter);
 
     // Fractional color
-    iterations = num_iter / float(max_iter);
+    iterations = iterations / float(max_iter);
 }

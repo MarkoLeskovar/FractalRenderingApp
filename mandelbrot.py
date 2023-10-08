@@ -34,7 +34,7 @@ def ComputeMandelbrotSet(output_image, bounds_x, bounds_y, max_iter):
 			x2 = 0.0
 			y2 = 0.0
 			num_iter = 0
-			while (x2 + y2 <= 4.0) and (num_iter <= max_iter):
+			while (x2 + y2 <= 4.0) and (num_iter < max_iter):
 				y = 2 * x * y + y0
 				x = x2 - y2 + x0
 				x2 = x * x
