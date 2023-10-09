@@ -4,7 +4,7 @@
 layout(pixel_center_integer) in vec4 gl_FragCoord;
 
 // IN - Fractal settings
-uniform dvec2 pix_size;
+uniform double pix_size;
 uniform dvec2 range_x;
 uniform dvec2 range_y;
 uniform int max_iter;
@@ -14,10 +14,10 @@ out float iterations;
 
 
 // FUNCITON - Compute physical coordinate of the pixel
-dvec2 ComputePixelCoordinate(dvec2 pix_size, dvec2 range_x, dvec2 range_y)
+dvec2 ComputePixelCoordinate(dvec2 range_x, dvec2 range_y, double pix_size)
 {
-    double x0 = range_x[0] + 0.5 * pix_size[0] + gl_FragCoord.x * pix_size[0];
-    double y0 = range_y[0] + 0.5 * pix_size[0] + gl_FragCoord.y * pix_size[1];
+    double x0 = range_x[0] + 0.5 * pix_size + gl_FragCoord.x * pix_size;
+    double y0 = range_y[0] + 0.5 * pix_size + gl_FragCoord.y * pix_size;
     return dvec2(x0, y0);
 }
 
@@ -49,7 +49,7 @@ float ComputeIterationCountMandelbrotSet(dvec2 pix_coord, int max_iter)
 void main()
 {
     // Compute pixel coordinate
-    dvec2 pixel_coordinate = ComputePixelCoordinate(pix_size, range_x, range_y);
+    dvec2 pixel_coordinate = ComputePixelCoordinate(range_x, range_y, pix_size);
 
     // Compute iteration count
     iterations = ComputeIterationCountMandelbrotSet(pixel_coordinate, max_iter);
