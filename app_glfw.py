@@ -174,12 +174,11 @@ O------------------------------------------------------------------------------O
 '''
 
 # TODO : Add icon to window
-# TODO : Add option to toggle full-screen window with "F". This must be adapted to each monitor
 # TODO : Add functionality to save a screenshot of actual render to a file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Move windowed quad to a separate function
 # TODO : Add text rendering to display information on the screen
-# TODO : Refactor the code to seperate render passes
+# TODO : Refactor the code to separate render passes
 
 
 class FractalRenderingApp():
@@ -289,6 +288,7 @@ class FractalRenderingApp():
         # Toggle flags
         self.window_open = True
         self.window_minimized = False
+        self.window_fullscreen = False
         self.keyboard_up_key_hold = False
         self.keyboard_down_key_hold = False
         self.mouse_left_button_hold = False
@@ -328,12 +328,27 @@ class FractalRenderingApp():
         if (key == glfw.KEY_ESCAPE and action == glfw.PRESS):
             self.window_open = False
 
+        # Toggle fullscreen
+        if (key == glfw.KEY_F and action == glfw.PRESS):
+            # Set to fullscreen
+            if not self.window_fullscreen:
+                self.window_fullscreen = True
+                self.window_pos_previous = np.asarray(glfw.get_window_pos(self.window)).astype('int')
+                self.window_size_previous = self.window_size.copy()
+                monitor = self.get_current_window_monitor(self.window)
+                mode = glfw.get_video_mode(monitor)
+                glfw.set_window_monitor(self.window, monitor, 0, 0, mode.size[0], mode.size[1], mode.refresh_rate)
+            # Make to windowed mode
+            else:
+                self.window_fullscreen = False
+                glfw.set_window_monitor(self.window, None, self.window_pos_previous[0], self.window_pos_previous[1],
+                                        self.window_size_previous[0], self.window_size_previous[1], glfw.DONT_CARE)
+
         # Increase number of iterations
         if (key == glfw.KEY_KP_ADD and action == glfw.PRESS):
             self.num_iter = min(self.num_iter + self.num_iter_step, self.num_iter_max)
             # DEBUG
             print(f'Fractal iterations = {self.num_iter}')
-
 
         # Decrease number of iterations
         if (key == glfw.KEY_KP_SUBTRACT and action == glfw.PRESS):
@@ -341,23 +356,19 @@ class FractalRenderingApp():
             # DEBUG
             print(f'Fractal iterations = {self.num_iter}')
 
-
         # Reset shift and scale
         if (key == glfw.KEY_R and action == glfw.PRESS):
             self.canvas.ResetShiftAndScale()
-
 
         # Increase pixel scale
         if (key == glfw.KEY_KP_DIVIDE and action == glfw.PRESS):
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
             self.window_size_update(self.window_size, temp_pix_scale)
 
-
         # Decrease pixel scale
         if (key == glfw.KEY_KP_MULTIPLY and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
             self.window_size_update(self.window_size, temp_pix_scale)
-
 
         # Hold zoom-in
         if (key == glfw.KEY_UP):
@@ -427,6 +438,30 @@ class FractalRenderingApp():
         print(f'Window size = {self.window_size}')
         print(f'Render size = {self.render_size}')
         print(f'Pixel scale = {self.pix_scale}')
+
+
+    def get_current_window_monitor(self, glfw_window):
+        # Get all available monitors
+        monitors = list(glfw.get_monitors())
+        # Get window bounding box
+        window_TL = np.asarray(glfw.get_window_pos(glfw_window))
+        window_BR = window_TL + np.asarray(glfw.get_window_size(glfw_window))
+        # Loop over all monitors
+        overlap = np.empty(len(monitors), dtype='int')
+        for i in range(len(monitors)):
+            # Get monitor bounding box
+            video_mode = glfw.get_video_mode(monitors[i])
+            monitor_TL = np.asarray(glfw.get_monitor_pos(monitors[i]))
+            monitor_BR = monitor_TL + np.asarray(video_mode.size)
+            # Window overlap area
+            min_x = max(window_TL[0], monitor_TL[0])
+            max_x = min(window_BR[0], monitor_BR[0])
+            min_y = max(window_TL[1], monitor_TL[1])
+            max_y = min(window_BR[1], monitor_BR[1])
+            overlap[i] = (max_x - min_x) * (max_y - min_y)
+        # Return monitor with the highest overlap
+        max_id = np.argmax(overlap)
+        return monitors[max_id]
 
 
     # O------------------------------------------------------------------------------O
