@@ -13,9 +13,10 @@ path_to_output = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRende
 if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
+
 # Compute the Mandelbrot set
 @numba.njit(cache=True, parallel=True)
-def ComputeMandelbrotSet(output_image, bounds_x, bounds_y, max_iter):
+def ComputeIterationCountMandelbrotSet(output_image, bounds_x, bounds_y, max_iter):
 
 	# Compute image physical dimensions
 	resolution = output_image.shape[::-1]
@@ -46,38 +47,21 @@ def ComputeMandelbrotSet(output_image, bounds_x, bounds_y, max_iter):
 
 
 # Create cyclic coloring scheme
-@numba.njit(cache=True)
-def ColorFractal(iterations, a=0.1, b=2.094):
-	iterations_mul_a = a * iterations
-	red = np.sin(iterations_mul_a)
-	green = np.sin(iterations_mul_a + b)
-	blue = np.sin(iterations_mul_a + 2.0 * b)
-	image = 0.5 * np.dstack((red, green, blue)) + 0.5
-	return (image * 255).astype('uint8')
+# @numba.njit(cache=True)
+def ComputeColorMap(iterations):
+	r = np.sin(iterations)
+	g = np.sin(iterations * 6.0)
+	b = np.sin(iterations * 3.0)
+	image = 0.5 * np.dstack((r, g, b)) + 0.5
+	return (255 * image).astype('uint8')
 
 
-# Time a function
-def TimeIt(n_eval, function, *args, **kwargs):
-	# Run the function once (in case of JIT compilation)
-	function(*args, **kwargs)
-	# Evaluate the function multiple times
-	total_time = np.zeros(shape=(n_eval,), dtype='float')
-	for i in range(n_eval):
-		t0 = time.time()
-		function(*args, **kwargs)
-		t1 = time.time()
-		total_time[i] = t1 - t0
-	# Compute mean run time
-	mean = np.mean(total_time)
-	std = np.std(total_time)
-	# Return results
-	return mean, std
 
-
-# TODO : Play around with fractal coloring options
-# TODO : Add smooth-iteration function for fractal coloring
-# TODO : Re-name the functions to have more uniform and descriptive names
-# TODO : Make multiple versions of "ComputeMandelbrotSet" and make it much faster with C++ and OpenMP
+# TODO : Add Julia set fractal
+# TODO : Add histogram coloring for fractal coloring
+# TODO : Add smooth-iteration count for fractal coloring
+# TODO : Add "HSV2RGB" a "RGB2HSV" functions
+# TODO : Add color-map option for fractal coloring
 
 # Define main function
 def main():
@@ -86,37 +70,34 @@ def main():
 	range_x = np.asarray([-2.0, 1.0])
 	range_y = np.asarray([-1.5, 1.5])
 	resolution = np.asarray([1000, 1000])
-	num_iter = 2000
+	max_iter = 256
 
-	# Initialize output image
+	# Compute number of fractal iterations
 	iterations = np.empty(shape=resolution[::-1], dtype='int')
+	ComputeIterationCountMandelbrotSet(iterations, range_x, range_y, max_iter)
 
-	# Fractal computation and coloring
-	t0 = time.time()
-	ComputeMandelbrotSet(iterations, range_x, range_y, num_iter)
-	image = ColorFractal(iterations)
-	t1 = time.time()
-	print(f'Total time : {t1 - t0}')
+	# Normalize the iteration count
+	iterations = iterations / max_iter
 
-	# Evaluate function run time
-	mean_time, std = TimeIt(10, ComputeMandelbrotSet, iterations, range_x, range_y, num_iter)
-	print(f'Run time : {mean_time:.5f}s +/- {std:.5f}s')
-
+	# Apply some coloring scheme
+	image = ComputeColorMap(iterations)
 
 	# Show the image
 	extent = np.hstack((range_x, range_y))
 	plt.imshow(image, interpolation='none', extent=extent, origin='upper')
 	plt.show()
 
-	# # Save the image to a folder
-	# pil_image = Image.fromarray(image)
-	# draw = ImageDraw.Draw(pil_image)
-	# font = ImageFont.truetype(f'C://Windows//Fonts//Arial.ttf', 50)
-	# draw.text((0, 0), f'X-BOUNDS : {range_x}', font=font, fill=(0, 0, 0))
-	# draw.text((0, 50), f'Y-BOUNDS : {range_y}', font=font, fill=(0, 0, 0))
-	# draw.text((0, 100), f'NUM ITER : {num_iter}', font=font, fill=(0, 0, 0))
-	# filename = f'{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png'
-	# pil_image.save(os.path.join(path_to_output, filename))
+	# Save the image to a folder
+	add_text = True
+	pil_image = Image.fromarray(image)
+	draw = ImageDraw.Draw(pil_image)
+	if add_text:
+		font = ImageFont.truetype(f'C://Windows//Fonts//Arial.ttf', 50)
+		draw.text((0, 0), f'X-BOUNDS : {range_x}', font=font, fill=(0, 0, 0))
+		draw.text((0, 50), f'Y-BOUNDS : {range_y}', font=font, fill=(0, 0, 0))
+		draw.text((0, 100), f'NUM ITER : {max_iter}', font=font, fill=(0, 0, 0))
+	filename = f'{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png'
+	pil_image.save(os.path.join(path_to_output, filename))
 
 
 # Run main function

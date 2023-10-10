@@ -51,6 +51,10 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
+# TODO : Update variables only when needed and not on every iteration
+# TODO : Add "S2GL" and "GL2S" transformation functions to switch between Screen and OpenGL
+# TODO : Experiment with customizable drawing area via convex polygon triangulation
+
 class Canvas():
 
     def __init__(self, size=(400, 300), range_x=(-1, 1)):
@@ -169,13 +173,14 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Reformat OpenGL functions and check if they are implemented correctly!!!
-# TODO : Show information in window title
-# TODO : Move fixed stuff outside of the main render loop to update one demand (e.g., pix_size...)
-# TODO : Add an window icon
-# TODO : Add a display to show the number of iterations
-# TODO : Add functionality so that mandelbrot only updates when necessary
-# TODO : Add functionality to save a screenshot photo with metadata
+# TODO : Add icon to window
+# TODO : Add option to toggle full-screen window with "F". This must be adapted to each monitor
+# TODO : Add functionality to save a screenshot of actual render to a file
+# TODO : Check if OpenGL functions are implemented correctly
+# TODO : Move windowed quad to a separate function
+# TODO : Add text rendering to display information on the screen
+# TODO : Refactor the code to seperate render passes
+
 
 class FractalRenderingApp():
 
@@ -220,11 +225,11 @@ class FractalRenderingApp():
         self.uniform_locations_main = self.get_uniform_locations(self.program_main)
 
         # Create framebuffers
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
-        # TODO : Move this quad to a seperate function
+
 
         # Texture coordinates to display the image
         textured_quad_vertices = np.asarray([[-1, -1, 0, 0],
@@ -416,7 +421,7 @@ class FractalRenderingApp():
         # Update OpenGL framebuffers
         glDeleteFramebuffers(1, [self.framebuffer_main, self.framebuffer_post])
         glDeleteTextures(1, [self.texture_main, self.texture_post])
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         # DEBUG
         print(f'Window size = {self.window_size}')
@@ -519,6 +524,14 @@ class FractalRenderingApp():
         glUniform1i(self.uniform_locations_main['max_iter'], self.num_iter)
         # Draw geometry
         glDrawArrays(GL_TRIANGLES, 0, 6)
+
+
+        # # DEBUG - READ PIXELS
+        # image_screenshot = np.empty(shape=(self.render_size[0], self.render_size[1], 3), dtype='uint8')
+        # glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_main)
+        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
+        # image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
+
 
         # 02. POST-PROCESSING PASS
         glViewport(0, 0, self.window_size[0], self.window_size[1])

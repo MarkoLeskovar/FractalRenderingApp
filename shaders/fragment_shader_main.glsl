@@ -10,7 +10,7 @@ uniform dvec2 range_y;
 uniform int max_iter;
 
 // OUT - Number of iterations
-out float iterations;
+out vec3 fragment_color;
 
 
 // FUNCITON - Compute physical coordinate of the pixel
@@ -52,8 +52,14 @@ void main()
     dvec2 pixel_coordinate = ComputePixelCoordinate(range_x, range_y, pix_size);
 
     // Compute iteration count
-    iterations = ComputeIterationCountMandelbrotSet(pixel_coordinate, max_iter);
+    float iterations = ComputeIterationCountMandelbrotSet(pixel_coordinate, max_iter);
 
     // Fractional color
     iterations = iterations / float(max_iter);
+
+    // Fractal color
+    float r = sin(iterations);
+    float g = sin(iterations * 6.0);
+    float b = sin(iterations * 3.0);
+    fragment_color = 0.5 * vec3(r, g, b) + 0.5;
 }
