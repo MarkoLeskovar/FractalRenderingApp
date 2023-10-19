@@ -1,6 +1,7 @@
 import glfw
 import glfw.GLFW as GLFW_VAR
 import numpy as np
+from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
 
@@ -173,10 +174,9 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Add icon to window
-# TODO : Add functionality to save a screenshot of actual render to a file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Move windowed quad to a separate function
+# TODO : Add functionality to save a screenshot of actual render to a file
 # TODO : Add text rendering to display information on the screen
 # TODO : Refactor the code to separate render passes
 
@@ -185,11 +185,13 @@ class FractalRenderingApp():
 
     def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0)):
 
-        # Create GLFW window and pixel size
-        self.window = self.create_window_glfw(window_size)
-        self.pix_scale = float(glfw.get_window_content_scale(self.window)[0])
+        # Create GLFW window and set the icon
+        self.window = self.create_main_window(window_size)
+        icon = Image.open('assets/mandelbrot.png').resize((32, 32))
+        glfw.set_window_icon(self.window, 1, icon)
 
         # Get the actual window size
+        self.pix_scale = float(glfw.get_window_content_scale(self.window)[0])
         self.window_size = np.asarray(glfw.get_framebuffer_size(self.window)).astype('int')
         self.render_size = (self.window_size / self.pix_scale).astype('int')
 
@@ -214,17 +216,18 @@ class FractalRenderingApp():
         self.pix_scale_step = 0.25
 
         # Main shader program
-        self.program_main = self.create_shader_program('shaders/vertex_shader.glsl',
-                                                       'shaders/fragment_shader_main.glsl')
+        self.program_main = self.create_shader_program('shaders/vertex.glsl',
+                                                       'shaders/fragment_main.glsl')
         # Post-processing shader program
-        self.program_post = self.create_shader_program('shaders/vertex_shader.glsl',
-                                                       'shaders/fragment_shader_post.glsl')
+        self.program_post = self.create_shader_program('shaders/vertex.glsl',
+                                                       'shaders/fragment_post.glsl')
 
         # Get uniform locations
-        self.uniform_locations_main = self.get_uniform_locations(self.program_main)
+        self.uniform_locations_main = self.get_uniform_locations(self.program_main, ['pix_size', 'range_x', 'range_y', 'max_iter'])
+        self.uniform_locations_post = self.get_uniform_locations(self.program_post, ['max_iter'])
 
         # Create framebuffers
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
         self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
@@ -272,8 +275,8 @@ class FractalRenderingApp():
         # Delete OpenGL buffers
         glDeleteBuffers(1, [self.quad_buffer])
         glDeleteVertexArrays(1, [self.quad_vao])
-        glDeleteFramebuffers(1, [self.framebuffer_main, self.framebuffer_post])
-        glDeleteTextures(1, [self.texture_main, self.texture_post])
+        glDeleteFramebuffers(2, [self.framebuffer_main, self.framebuffer_post])
+        glDeleteTextures(2, [self.texture_main, self.texture_post])
         glDeleteProgram(self.program_main)
         # Terminate GLFW
         glfw.destroy_window(self.window)
@@ -330,7 +333,7 @@ class FractalRenderingApp():
 
         # Toggle fullscreen
         if (key == glfw.KEY_F and action == glfw.PRESS):
-            # Set to fullscreen
+            # Make fullscreen
             if not self.window_fullscreen:
                 self.window_fullscreen = True
                 self.window_pos_previous = np.asarray(glfw.get_window_pos(self.window)).astype('int')
@@ -338,7 +341,7 @@ class FractalRenderingApp():
                 monitor = self.get_current_window_monitor(self.window)
                 mode = glfw.get_video_mode(monitor)
                 glfw.set_window_monitor(self.window, monitor, 0, 0, mode.size[0], mode.size[1], mode.refresh_rate)
-            # Make to windowed mode
+            # Make windowed
             else:
                 self.window_fullscreen = False
                 glfw.set_window_monitor(self.window, None, self.window_pos_previous[0], self.window_pos_previous[1],
@@ -432,7 +435,7 @@ class FractalRenderingApp():
         # Update OpenGL framebuffers
         glDeleteFramebuffers(1, [self.framebuffer_main, self.framebuffer_post])
         glDeleteTextures(1, [self.texture_main, self.texture_post])
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
         self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         # DEBUG
         print(f'Window size = {self.window_size}')
@@ -443,17 +446,20 @@ class FractalRenderingApp():
     def get_current_window_monitor(self, glfw_window):
         # Get all available monitors
         monitors = list(glfw.get_monitors())
+        num_monitors = len(monitors)
+        if (num_monitors == 1):
+            return monitors[0]
         # Get window bounding box
         window_TL = np.asarray(glfw.get_window_pos(glfw_window))
         window_BR = window_TL + np.asarray(glfw.get_window_size(glfw_window))
-        # Loop over all monitors
-        overlap = np.empty(len(monitors), dtype='int')
-        for i in range(len(monitors)):
+        # Loop over all monitors to find the largest overlap
+        overlap = np.empty(num_monitors, dtype='int')
+        for i in range(num_monitors):
             # Get monitor bounding box
             video_mode = glfw.get_video_mode(monitors[i])
             monitor_TL = np.asarray(glfw.get_monitor_pos(monitors[i]))
             monitor_BR = monitor_TL + np.asarray(video_mode.size)
-            # Window overlap area
+            # Window-monitor overlap area
             min_x = max(window_TL[0], monitor_TL[0])
             max_x = min(window_BR[0], monitor_BR[0])
             min_y = max(window_TL[1], monitor_TL[1])
@@ -468,8 +474,8 @@ class FractalRenderingApp():
     # | OPENGL FUNCTIONS                                                             |
     # O------------------------------------------------------------------------------O
 
-    def create_window_glfw(self, window_size):
-        window_size = np.asarray(window_size)
+    def create_main_window(self, size):
+        size = np.asarray(size).astype('int')
 
         # Initialize GLFW
         glfw.init()
@@ -483,7 +489,7 @@ class FractalRenderingApp():
         glfw.window_hint(GLFW_VAR.GLFW_FOCUSED, GLFW_VAR.GLFW_TRUE)
 
         # Create a GLFW window
-        window = glfw.create_window(window_size[0], window_size[1], "Fractal Rendering", None, None)
+        window = glfw.create_window(size[0], size[1], "Fractal Rendering", None, None)
         glfw.set_window_size_limits(window, 200, 200, GLFW_VAR.GLFW_DONT_CARE, GLFW_VAR.GLFW_DONT_CARE)
         glfw.make_context_current(window)
         glfw.swap_interval(1)  # V-sync
@@ -514,8 +520,7 @@ class FractalRenderingApp():
         return program
 
 
-    def get_uniform_locations(self, shader_program):
-        uniform_names = ['pix_size', 'range_x', 'range_y', 'max_iter']
+    def get_uniform_locations(self, shader_program, uniform_names):
         uniform_locations = {}
         for uniform_name in uniform_names:
             uniform_locations[uniform_name] = glGetUniformLocation(shader_program, uniform_name)
@@ -577,6 +582,8 @@ class FractalRenderingApp():
         glBindTexture(GL_TEXTURE_2D, self.texture_main)
         glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.quad_vao)
+        # Send uniforms to the GPU
+        glUniform1i(self.uniform_locations_post['max_iter'], self.num_iter)
         # Draw geometry
         glDrawArrays(GL_TRIANGLES, 0, 6)
 

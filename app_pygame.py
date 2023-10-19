@@ -1,13 +1,11 @@
-import os
 import sys
 import time
-import ctypes
 import pygame
 import numpy as np
 
 # Import python modules
-from mandelbrot import ComputeColorMap
-from mandelbrot import ComputeIterationCountMandelbrotSet
+from fractals.mandelbrot import ComputeColorMap
+from fractals.mandelbrot import iterations_mandelbrot_set_parallel
 
 # Make the application aware of the DPI scaling
 # if sys.platform == 'win32':
@@ -322,7 +320,7 @@ class MainApp:
 
         # Initialize the image
         range_x, range_y = self.get_window_range()
-        ComputeIterationCountMandelbrotSet(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
+        iterations_mandelbrot_set_parallel(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
         img_fractal_color = np.fliplr(ComputeColorMap(self.fractal_iterations.T))
         surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
 
@@ -351,7 +349,7 @@ class MainApp:
             # Compute the image
             t0 = time.time()
             range_x, range_y = self.get_window_range()
-            ComputeIterationCountMandelbrotSet(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
+            iterations_mandelbrot_set_parallel(self.fractal_iterations, np.asarray(range_x), np.asarray(range_y), self.num_iter)
             img_fractal_color = np.fliplr(ComputeColorMap(self.fractal_iterations.T))
             surf_fractal = pygame.surfarray.make_surface(img_fractal_color)
             self.render_time = time.time() - t0
