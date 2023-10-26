@@ -1,4 +1,4 @@
-#version 440 core
+#version 400 core
 
 // IN - From vextex shader
 in vec2 fragment_texture_coordinate;

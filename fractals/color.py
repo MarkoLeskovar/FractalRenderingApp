@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 
-
 '''
 O-------------------------------------------------------------------------------O
 | COLOR SPACE TRANSFORMATIONS                                                   |
@@ -52,7 +51,7 @@ O-------------------------------------------------------------------------------
 
 @numba.njit(cache=True)
 def IterationsHistogram(img_iterations, max_iter):
-    max_iter_max_id = max_iter - 1
+    # max_iter_max_id = max_iter - 1
     histogram = np.zeros(shape=max_iter, dtype='int')
     for i in range(img_iterations.shape[0]):
         for j in range(img_iterations.shape[1]):
@@ -63,7 +62,7 @@ def IterationsHistogram(img_iterations, max_iter):
 
 
 @numba.njit(cache=True)
-def HistogramNormalization(img_iterations, histogram, histogram_sum):
+def HistogramRecoloring(img_iterations, histogram, histogram_sum):
     img_iterations_norm = np.zeros(shape=img_iterations.shape, dtype='float')
     for i in range(img_iterations.shape[0]):
         for j in range(img_iterations.shape[1]):
@@ -164,5 +163,5 @@ def cmap_wikipedia():
                        [255, 170, 0],
                        [204, 128, 0],
                        [153, 87, 0],
-                       [106, 52, 3]])
-    return cmap / 255
+                       [106, 52, 3]]).astype('float32')
+    return (cmap / 255.0).astype('float32')

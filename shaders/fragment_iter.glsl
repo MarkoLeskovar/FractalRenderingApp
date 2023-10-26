@@ -1,7 +1,7 @@
-#version 440 core
+#version 400 core
 
 // IN - Fragment coordinate
-layout(pixel_center_integer) in vec4 gl_FragCoord;
+layout(pixel_center_integer ) in vec4 gl_FragCoord;
 
 // IN - Fractal settings
 uniform double pix_size;

@@ -1,6 +1,7 @@
 import glfw
 import glfw.GLFW as GLFW_VAR
 import numpy as np
+import tripy
 from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
@@ -53,8 +54,6 @@ O------------------------------------------------------------------------------O
 '''
 
 # TODO : Update variables only when needed and not on every iteration
-# TODO : Add "S2GL" and "GL2S" transformation functions to switch between Screen and OpenGL
-# TODO : Experiment with customizable drawing area via convex polygon triangulation
 
 class Canvas():
 
@@ -73,7 +72,7 @@ class Canvas():
         self.scale_abs = self.scale_abs_default
 
         # Initialize mouse position
-        self.mouse_pos = np.asarray([0, 0], dtype='int')
+        self.mouse_pos = np.asarray([0, 0], dtype='float')
         self.mouse_pos_previous = self.mouse_pos.copy()
 
 
@@ -143,7 +142,7 @@ class Canvas():
 
 
     def SetMousePos(self, pos):
-        self.mouse_pos = np.asarray(pos).astype('int')
+        self.mouse_pos = np.asarray(pos).astype('float')
 
 
     def UpdateMousePosPrevious(self):
@@ -155,16 +154,36 @@ class Canvas():
     # O------------------------------------------------------------------------------O
 
     def S2W(self, points):
+        points = np.asarray(points)
         output_points = np.empty(points.shape, dtype='float')
         output_points[0] = (points[0] - self.shift[0]) / self.scale_abs
         output_points[1] = (self.size[1] + self.shift[1] - points[1]) / self.scale_abs
         return output_points
 
     def W2S(self, points):
+        points = np.asarray(points)
         output_points = np.empty(points.shape, dtype='float')
         output_points[0] = self.shift[0] + points[0] * self.scale_abs
         output_points[1] = self.size[1] + self.shift[1] - points[1] * self.scale_abs
         return output_points
+
+    def S2GL(self, points):
+        output_points = np.asarray(points).astype('float')
+        output_points = (2.0 * (output_points.T / self.size) - 1.0).T
+        output_points[1] *= -1.0
+        return output_points
+
+    def GL2S(self, points):
+        output_points = np.asarray(points).astype('float')
+        output_points[1] *= -1.0
+        output_points = (0.5 * (output_points.T + 1.0) * self.size).T
+        return output_points
+
+    def W2GL(self, points):
+        return self.S2GL(self.W2S(points))
+
+    def GL2W(self, points):
+        return self.S2W(self.GL2S(points))
 
 
 
@@ -174,6 +193,7 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
+# TODO : Add polygon triangulation and vertex coordinate sampling
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Move windowed quad to a separate function
 # TODO : Add functionality to save a screenshot of actual render to a file
@@ -207,7 +227,7 @@ class FractalRenderingApp():
         # Fractal interation variables
         self.num_iter = 256
         self.num_iter_min = 32
-        self.num_iter_max = 1024
+        self.num_iter_max = 2048
         self.num_iter_step = 32
 
         # Pixel scaling variables
@@ -216,40 +236,43 @@ class FractalRenderingApp():
         self.pix_scale_step = 0.25
 
         # Main shader program
-        self.program_main = self.create_shader_program('shaders/vertex.glsl',
-                                                       'shaders/fragment_main.glsl')
+        self.program_iter = self.create_shader_program('shaders/vertex.glsl',
+                                                       'shaders/fragment_iter.glsl')
         # Post-processing shader program
-        self.program_post = self.create_shader_program('shaders/vertex.glsl',
-                                                       'shaders/fragment_post.glsl')
+        self.program_color = self.create_shader_program('shaders/vertex.glsl',
+                                                       'shaders/fragment_color.glsl')
 
         # Get uniform locations
-        self.uniform_locations_main = self.get_uniform_locations(self.program_main, ['pix_size', 'range_x', 'range_y', 'max_iter'])
-        self.uniform_locations_post = self.get_uniform_locations(self.program_post, ['max_iter'])
+        self.uniform_locations_iter = self.get_uniform_locations(self.program_iter, ['pix_size', 'range_x', 'range_y', 'max_iter'])
+        self.uniform_locations_color = self.get_uniform_locations(self.program_color, ['max_iter'])
 
         # Create framebuffers
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
-        self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+        self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        self.framebuffer_color, self.texture_post = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
+        # TODO : Implement textured quad from a polygon
+        points = np.asarray([[0, 0], [0, self.canvas.size[1]], self.canvas.size, [self.canvas.size[0], 0]])
+        # points = np.asarray([[0, 0], [0, 600], [600, 600], [600, 400], [800, 400], [800, 0]])
+        triangles = np.asarray(tripy.earclip(points))
+        triangles = np.squeeze(triangles.reshape((1, -1, 2)))
+        self.num_triangles = triangles.shape[0]
 
-
-        # Texture coordinates to display the image
-        textured_quad_vertices = np.asarray([[-1, -1, 0, 0],
-                                                [-1,  1, 0, 1],
-                                                [ 1,  1, 1, 1],
-                                                [-1, -1, 0, 0],
-                                                [ 1,  1, 1, 1],
-                                                [ 1, -1, 1, 0]], dtype='float32')
+        # Create texture coordinates
+        triangles_gl = self.canvas.S2GL(triangles.T).T
+        triangles_texture = triangles / self.canvas.size
+        triangles_texture[:, 1] = np.abs(triangles_texture[:, 1] - 1.0)  # Flip texture along y-axis
+        textured_polygon_vertices = np.hstack((triangles_gl, triangles_texture)).astype('float32')
 
         # Define Vertex Buffer Object (VBO)
-        self.quad_buffer = glGenBuffers(1)
-        glBindBuffer(GL_ARRAY_BUFFER, self.quad_buffer)
-        glBufferData(GL_ARRAY_BUFFER, textured_quad_vertices.nbytes, textured_quad_vertices, GL_STATIC_DRAW)
+        self.polygon_buffer = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.polygon_buffer)
+        glBufferData(GL_ARRAY_BUFFER, textured_polygon_vertices.nbytes, textured_polygon_vertices, GL_STATIC_DRAW)
 
         # Define Vertex Array Object (VAO)
-        self.quad_vao = glGenVertexArrays(1)
-        glBindVertexArray(self.quad_vao)
-        glBindBuffer(GL_ARRAY_BUFFER, self.quad_buffer)
+        self.polygon_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.polygon_vao)
+        glBindBuffer(GL_ARRAY_BUFFER, self.polygon_buffer)
 
         # Enable VAO attributes (layout of the VBO)
         glEnableVertexAttribArray(0)
@@ -273,11 +296,11 @@ class FractalRenderingApp():
 
         # TODO : Check if everything is deleted
         # Delete OpenGL buffers
-        glDeleteBuffers(1, [self.quad_buffer])
-        glDeleteVertexArrays(1, [self.quad_vao])
-        glDeleteFramebuffers(2, [self.framebuffer_main, self.framebuffer_post])
-        glDeleteTextures(2, [self.texture_main, self.texture_post])
-        glDeleteProgram(self.program_main)
+        glDeleteBuffers(1, [self.polygon_buffer])
+        glDeleteVertexArrays(1, [self.polygon_vao])
+        glDeleteFramebuffers(2, [self.framebuffer_iter, self.framebuffer_color])
+        glDeleteTextures(2, [self.texture_iter, self.texture_post])
+        glDeleteProgram(self.program_iter)
         # Terminate GLFW
         glfw.destroy_window(self.window)
         glfw.terminate()
@@ -368,6 +391,7 @@ class FractalRenderingApp():
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
             self.window_size_update(self.window_size, temp_pix_scale)
 
+
         # Decrease pixel scale
         if (key == glfw.KEY_KP_MULTIPLY and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
@@ -408,10 +432,7 @@ class FractalRenderingApp():
 
     def callback_cursor_position(self, window, x_pos, y_pos):
         temp_mp_s = np.asarray([x_pos, y_pos]) / self.pix_scale
-        temp_mp_s = temp_mp_s.astype('int')
         self.canvas.SetMousePos(temp_mp_s)
-        # DEBUG
-        # print(f'Mouse cursor = {self.canvas.S2W(self.canvas.mouse_pos)}')
 
 
     def process_hold_keys(self):
@@ -427,20 +448,25 @@ class FractalRenderingApp():
 
 
     def window_size_update(self, size, pix_scale):
+        # Update mouse position
+        temp_mp_s = self.canvas.mouse_pos * (self.pix_scale / pix_scale)
+        self.canvas.SetMousePos(temp_mp_s)
+        # Update window size
         self.window_size = np.asarray(size).astype('int')
         self.pix_scale = float(pix_scale)
         # Update app variables
         self.render_size = (self.window_size / self.pix_scale).astype('int')
         self.canvas.Resize(self.render_size)
         # Update OpenGL framebuffers
-        glDeleteFramebuffers(1, [self.framebuffer_main, self.framebuffer_post])
-        glDeleteTextures(1, [self.texture_main, self.texture_post])
-        self.framebuffer_main, self.texture_main = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
-        self.framebuffer_post, self.texture_post = self.create_framebuffer(self.window_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+        glDeleteFramebuffers(2, [self.framebuffer_iter, self.framebuffer_color])
+        glDeleteTextures(2, [self.texture_iter, self.texture_post])
+        self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        self.framebuffer_color, self.texture_post = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         # DEBUG
         print(f'Window size = {self.window_size}')
         print(f'Render size = {self.render_size}')
         print(f'Pixel scale = {self.pix_scale}')
+
 
 
     def get_current_window_monitor(self, glfw_window):
@@ -480,7 +506,7 @@ class FractalRenderingApp():
         # Initialize GLFW
         glfw.init()
         glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MAJOR, 4)
-        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 4)
+        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 0)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_PROFILE, GLFW_VAR.GLFW_OPENGL_CORE_PROFILE)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_FORWARD_COMPAT, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_SCALE_TO_MONITOR, GLFW_VAR.GLFW_TRUE)
@@ -550,47 +576,46 @@ class FractalRenderingApp():
         range_x, range_y = self.canvas.GetRangeXY()
         pix_size = self.canvas.GetPixelSize(range_x)
 
-        # 01. MAIN RENDER PASS
+        # 01. COMPUTE FRACTAL ITERATIONS
         glViewport(0, 0, self.render_size[0], self.render_size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_main)
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_iter)
         glClear(GL_COLOR_BUFFER_BIT)
-        glUseProgram(self.program_main)
+        glUseProgram(self.program_iter)
         # Bind resources
-        glBindVertexArray(self.quad_vao)
+        glBindVertexArray(self.polygon_vao)
         # Send uniforms to the GPU
-        glUniform2dv(self.uniform_locations_main['range_x'], 1, range_x.astype('float64'))
-        glUniform2dv(self.uniform_locations_main['range_y'], 1, range_y.astype('float64'))
-        glUniform1d(self.uniform_locations_main['pix_size'], pix_size)
-        glUniform1i(self.uniform_locations_main['max_iter'], self.num_iter)
+        glUniform2dv(self.uniform_locations_iter['range_x'], 1, range_x.astype('float64'))
+        glUniform2dv(self.uniform_locations_iter['range_y'], 1, range_y.astype('float64'))
+        glUniform1d(self.uniform_locations_iter['pix_size'], pix_size)
+        glUniform1i(self.uniform_locations_iter['max_iter'], self.num_iter)
         # Draw geometry
-        glDrawArrays(GL_TRIANGLES, 0, 6)
+        glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
 
+        # 02. FRACTAL COLORING
+        # glViewport(0, 0, self.render_size[0], self.render_size[1])
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_color)
+        glClear(GL_COLOR_BUFFER_BIT)
+        glUseProgram(self.program_color)
+        # Bind resources
+        glBindTexture(GL_TEXTURE_2D, self.texture_iter)
+        glActiveTexture(GL_TEXTURE0)
+        glBindVertexArray(self.polygon_vao)
+        # Send uniforms to the GPU
+        glUniform1i(self.uniform_locations_color['max_iter'], self.num_iter)
+        # Draw geometry
+        glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
 
         # # DEBUG - READ PIXELS
-        # image_screenshot = np.empty(shape=(self.render_size[0], self.render_size[1], 3), dtype='uint8')
-        # glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_main)
-        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
-        # image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
+        image_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
+        glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
+        image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
 
-
-        # 02. POST-PROCESSING PASS
-        glViewport(0, 0, self.window_size[0], self.window_size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_post)
-        glClear(GL_COLOR_BUFFER_BIT)
-        glUseProgram(self.program_post)
-        # Bind resources
-        glBindTexture(GL_TEXTURE_2D, self.texture_main)
-        glActiveTexture(GL_TEXTURE0)
-        glBindVertexArray(self.quad_vao)
-        # Send uniforms to the GPU
-        glUniform1i(self.uniform_locations_post['max_iter'], self.num_iter)
-        # Draw geometry
-        glDrawArrays(GL_TRIANGLES, 0, 6)
 
         # 03. COPY FRAMEBUFFERS
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_post)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
-        glBlitFramebuffer(0, 0, self.window_size[0], self.window_size[1],
+        glBlitFramebuffer(0, 0, self.render_size[0], self.render_size[1],
                           0, 0, self.window_size[0], self.window_size[1],
                           GL_COLOR_BUFFER_BIT, GL_NEAREST)
 

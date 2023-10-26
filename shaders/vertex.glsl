@@ -1,4 +1,4 @@
-#version 440
+#version 400
 
 // INPUT - VBO
 layout (location=0) in vec2 vertex_position;

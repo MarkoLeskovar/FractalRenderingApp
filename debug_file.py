@@ -17,6 +17,7 @@ if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
 
+# TODO : WORK ON THIS FILE !!!!
 # TODO : Check if everything is implemented correctly (histogram, colormaps...). Make example scripts.
 # TODO : Add cyclic colormapping option
 # TODO : Add smooth-iteration count for fractal coloring
@@ -64,8 +65,8 @@ def main():
 	plt.show()
 
 	# Histogram coloring
-	iterations_norm = fract_color.HistogramNormalization(iterations, hist, sum_hist)
-	iterations_norm_NEW = fract_color.HistogramNormalization(iterations, hist_LR, sum_hist_LR)
+	iterations_norm = fract_color.HistogramRecoloring(iterations, hist, sum_hist)
+	iterations_norm_NEW = fract_color.HistogramRecoloring(iterations, hist_LR, sum_hist_LR)
 
 	# PLOT - Show difference in High-Resolution (HR) and Low-Resolution (LR) histograms
 	extent = np.hstack((range_x, range_y))
@@ -78,7 +79,7 @@ def main():
 
 	# Get matplotlib colormap
 	cmap = colormaps.get('ocean_r')
-	cmap_array = cmap(range(cmap.N))[:, 0:3]
+	cmap_array = cmap(range(cmap.N))[:, 0:3].astype('float32')
 	# cmap_array = fract_color.cmap_wikipedia()
 
 	# Apply colormap
