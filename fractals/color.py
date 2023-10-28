@@ -52,7 +52,7 @@ O-------------------------------------------------------------------------------
 @numba.njit(cache=True)
 def IterationsHistogram(img_iterations, max_iter):
     # max_iter_max_id = max_iter - 1
-    histogram = np.zeros(shape=max_iter, dtype='int')
+    histogram = np.zeros(shape=max_iter, dtype='int32')
     for i in range(img_iterations.shape[0]):
         for j in range(img_iterations.shape[1]):
             # n = min(int(img_iterations[i, j]), max_iter_max_id)
@@ -67,7 +67,7 @@ def HistogramRecoloring(img_iterations, histogram, histogram_sum):
     for i in range(img_iterations.shape[0]):
         for j in range(img_iterations.shape[1]):
             temp_iter = img_iterations[i, j]
-            for n in range(temp_iter):
+            for n in range(int(temp_iter)):
                 img_iterations_norm[i, j] += histogram[n] / histogram_sum
     return img_iterations_norm
 
@@ -148,20 +148,20 @@ O-------------------------------------------------------------------------------
 '''
 
 def cmap_wikipedia():
-    cmap = np.asarray([[66, 30, 15],
-                       [25, 7, 26],
-                       [9, 1, 47],
-                       [4, 4, 73],
-                       [0, 7, 100],
-                       [12, 44, 138],
-                       [24, 82, 177],
-                       [57, 125, 209],
-                       [134, 181, 229],
-                       [211, 236, 248],
-                       [241, 233, 191],
-                       [248, 201, 95],
-                       [255, 170, 0],
-                       [204, 128, 0],
-                       [153, 87, 0],
-                       [106, 52, 3]]).astype('float32')
-    return (cmap / 255.0).astype('float32')
+    cmap = np.asarray([[ 66,  30,  15, 255],
+                       [ 25,   7,  26, 255],
+                       [  9,   1,  47, 255],
+                       [  4,   4,  73, 255],
+                       [  0,   7, 100, 255],
+                       [ 12,  44, 138, 255],
+                       [ 24,  82, 177, 255],
+                       [ 57, 125, 209, 255],
+                       [134, 181, 229, 255],
+                       [211, 236, 248, 255],
+                       [241, 233, 191, 255],
+                       [248, 201,  95, 255],
+                       [255, 170,   0, 255],
+                       [204, 128,   0, 255],
+                       [153,  87,   0, 255],
+                       [106,  52,   3, 255]])
+    return (cmap / 255).astype('float32')

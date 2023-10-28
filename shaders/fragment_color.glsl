@@ -1,30 +1,55 @@
-#version 400 core
+#version 430 core
+#define MAX_ITER INSERT_MAX_ITER
+#define MAX_CMAP_SIZE INSERT_MAX_CMAP_SIZE
 
 // IN - From vextex shader
 in vec2 fragment_texture_coordinate;
 
-// IN - Uniform texture from main fragment shader
-uniform sampler2D framebuffer_texture;
+// IN - Buffers
+layout(std140, binding=1) uniform cmap {
+    vec4[MAX_CMAP_SIZE] cmap_color;
+};
+layout(std140, binding=2) uniform hist {
+    int[MAX_ITER] histogram;
+};
 
-// IN - Fractal settings
-uniform int max_iter;
+// IN - Uniforms
+uniform sampler2D iterations_texture;
+uniform int num_iter;
+uniform int cmap_size;
+uniform int hist_sum;
 
 // OUT - Final pixel color
 out vec3 fragment_color;
 
 
+// FUNCTION - Apply colormap with linear interpolation
+vec3 ApplyColormap(float iterations)
+{
+    int cmap_max_i = cmap_size - 1;
+    float index = iterations * cmap_max_i;
+    int n0 = int(index);
+    int n1 = min(n0 + 1, cmap_max_i);
+    float t = mod(index, 1.0);
+    return mix(cmap_color[n0].rgb, cmap_color[n1].rgb, t);
+}
+
 // FUNCTION - Main function
 void main()
 {
     // Get number of iterations
-    float iterations =  texture(framebuffer_texture, fragment_texture_coordinate).r;
+    float iterations =  texture(iterations_texture, fragment_texture_coordinate).r;
 
-    // Fractional color
-    iterations = iterations / float(max_iter);
+    // Fractional iteration count [0...1]
+    float iterations_norm = iterations / float(num_iter);
 
-    // Fractal color
-    float r = sin(iterations);
-    float g = sin(iterations * 6.0);
-    float b = sin(iterations * 3.0);
-    fragment_color = 0.5 * vec3(r, g, b) + 0.5;
+    // Histogram recoloring
+//    float iterations_norm = 0.0;
+//    for(int i = 0; i < int(iterations); i++)
+//    {
+//        iterations_norm += float(histogram[i]) / float(hist_sum);
+//    }
+
+    // Apply colormap
+    fragment_color = ApplyColormap(iterations_norm);
 }

@@ -5,7 +5,11 @@ import tripy
 from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
+from matplotlib import colormaps
 
+# Add custom modules
+from fractals.color import IterationsHistogram, cmap_wikipedia
+from fractals.mandelbrot import IterationsMandelbrotSet
 
 '''
 O------------------------------------------------------------------------------O
@@ -15,34 +19,27 @@ O------------------------------------------------------------------------------O
 
 class ClockGLFW:
     def __init__(self):
-        self._fps_previous_time = glfw.get_time()
-        self._fps_current_time = 0.0
-        self._fps_frame_rate = 1
-        self._num_frames = 0
-
-        self._ft_previous_time = self._fps_previous_time
-        self._ft_current_time = 0.0
-        self._ft_frame_time = 1e-6
+        self.current_time = glfw.get_time()
+        self.previous_time = self.current_time
+        self.frame_time = 1.0
+        self.delta_time = 0.0
+        self.num_frames = 0
 
     def Update(self):
-        # Update FPS counter
-        self._fps_current_time = glfw.get_time()
-        delta_time = self._fps_current_time - self._fps_previous_time
-        if (delta_time >= 0.2):
-            self._fps_frame_rate = int(self._num_frames / delta_time)
-            self._fps_previous_time = self._fps_current_time
-            self._num_frames = -1
-        self._num_frames += 1
-        # Update frame time duration
-        self._ft_current_time = self._fps_current_time
-        self._ft_frame_time = self._fps_current_time - self._ft_previous_time
-        self._ft_previous_time = self._ft_current_time
+        self.num_frames += 1
+        self.current_time = glfw.get_time()
+        self.delta_time += self.current_time - self.previous_time
+        self.previous_time = self.current_time
+        if (self.delta_time >= 0.2):
+            self.frame_time = self.delta_time / self.num_frames
+            self.delta_time = 0.0
+            self.num_frames = 0
 
     def ShowFrameRate(self, window):
-        glfw.set_window_title(window, f'Frame rate : {self._fps_frame_rate} FPS')
+        glfw.set_window_title(window, f'Frame rate : {int(np.round(1.0 / self.frame_time))} FPS')
 
     def ShowFrameTime(self, window):
-        glfw.set_window_title(window, f'Frame time : {self._ft_frame_time:.6f} s')
+        glfw.set_window_title(window, f'Frame time : {self.frame_time:.6f} s')
 
 
 
@@ -193,6 +190,8 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
+# TODO : Make scaling speed dependent on the FPS
+# TODO : Add colormap options and change them via button
 # TODO : Add polygon triangulation and vertex coordinate sampling
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Move windowed quad to a separate function
@@ -235,16 +234,24 @@ class FractalRenderingApp():
         self.pix_scale_max = 8.0
         self.pix_scale_step = 0.25
 
-        # Main shader program
-        self.program_iter = self.create_shader_program('shaders/vertex.glsl',
-                                                       'shaders/fragment_iter.glsl')
-        # Post-processing shader program
-        self.program_color = self.create_shader_program('shaders/vertex.glsl',
-                                                       'shaders/fragment_color.glsl')
+        # Read shader source code
+        vertex_source = self.read_shader_source('shaders/vertex.glsl')
+        fragment_iter_source = self.read_shader_source('shaders/fragment_iter.glsl')
+        fragment_color_source = self.read_shader_source('shaders/fragment_color.glsl')
+
+        # Replace compile-time constants
+        fragment_color_source = fragment_color_source.replace('INSERT_MAX_ITER', str(self.num_iter_max))
+        fragment_color_source = fragment_color_source.replace('INSERT_MAX_CMAP_SIZE', str(256))
+
+        # Create shader programs
+        self.program_iter = self.create_shader_program(vertex_source, fragment_iter_source)
+        self.program_color = self.create_shader_program(vertex_source, fragment_color_source)
 
         # Get uniform locations
-        self.uniform_locations_iter = self.get_uniform_locations(self.program_iter, ['pix_size', 'range_x', 'range_y', 'max_iter'])
-        self.uniform_locations_color = self.get_uniform_locations(self.program_color, ['max_iter'])
+        self.uniform_locations_iter = self.get_uniform_locations(
+            self.program_iter, ['pix_size', 'range_x', 'range_y', 'num_iter'])
+        self.uniform_locations_color = self.get_uniform_locations(
+            self.program_color, ['num_iter', 'cmap_size', 'hist_sum'])
 
         # Create framebuffers
         self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
@@ -279,6 +286,22 @@ class FractalRenderingApp():
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(0))
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
+
+
+        # Colormap via Uniform Buffer Object (UBO)
+        cmap = colormaps.get('ocean_r')
+        self.cmap_array = cmap(range(cmap.N)).astype('float32')
+        # self.cmap_array = cmap_wikipedia()
+
+        self.cmap_buffer = glGenBuffers(1)
+        glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
+        glBufferData(GL_UNIFORM_BUFFER, self.cmap_array.nbytes, self.cmap_array, GL_DYNAMIC_DRAW)
+
+        # Histogram via Uniform Buffer Object (UBO)
+        # self.hist_buffer = glGenBuffers(1)
+        # glBindBuffer(GL_UNIFORM_BUFFER, self.hist_buffer)
+
+        # glBufferData(GL_UNIFORM_BUFFER, hist.nbytes, hist, GL_DYNAMIC_DRAW)
 
 
         # Loop until the user closes the window
@@ -473,7 +496,7 @@ class FractalRenderingApp():
         # Get all available monitors
         monitors = list(glfw.get_monitors())
         num_monitors = len(monitors)
-        if (num_monitors == 1):
+        if num_monitors == 1:
             return monitors[0]
         # Get window bounding box
         window_TL = np.asarray(glfw.get_window_pos(glfw_window))
@@ -486,10 +509,10 @@ class FractalRenderingApp():
             monitor_TL = np.asarray(glfw.get_monitor_pos(monitors[i]))
             monitor_BR = monitor_TL + np.asarray(video_mode.size)
             # Window-monitor overlap area
-            min_x = max(window_TL[0], monitor_TL[0])
-            max_x = min(window_BR[0], monitor_BR[0])
-            min_y = max(window_TL[1], monitor_TL[1])
-            max_y = min(window_BR[1], monitor_BR[1])
+            min_x = np.maximum(window_TL[0], monitor_TL[0])
+            max_x = np.minimum(window_BR[0], monitor_BR[0])
+            min_y = np.maximum(window_TL[1], monitor_TL[1])
+            max_y = np.minimum(window_BR[1], monitor_BR[1])
             overlap[i] = (max_x - min_x) * (max_y - min_y)
         # Return monitor with the highest overlap
         max_id = np.argmax(overlap)
@@ -506,7 +529,7 @@ class FractalRenderingApp():
         # Initialize GLFW
         glfw.init()
         glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MAJOR, 4)
-        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 0)
+        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 3)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_PROFILE, GLFW_VAR.GLFW_OPENGL_CORE_PROFILE)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_FORWARD_COMPAT, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_SCALE_TO_MONITOR, GLFW_VAR.GLFW_TRUE)
@@ -522,13 +545,13 @@ class FractalRenderingApp():
         return window
 
 
-    def create_shader_program(self, vertex_shader_path, fragment_shader_path):
+    def read_shader_source(self, path_to_shader):
+        with open(path_to_shader, 'r') as f:
+            shader_source = f.read()
+        return shader_source
 
-        # Open and load individual shaders
-        with open(vertex_shader_path, 'r') as f:
-            vertex_src = f.readlines()
-        with open(fragment_shader_path, 'r') as f:
-            fragment_src = f.readlines()
+
+    def create_shader_program(self, vertex_src, fragment_src):
 
         # Compile the shaders
         vertex_shader = compileShader(vertex_src, GL_VERTEX_SHADER)
@@ -575,6 +598,12 @@ class FractalRenderingApp():
         # 00. COMPUTE FRAME VARIABLES
         range_x, range_y = self.canvas.GetRangeXY()
         pix_size = self.canvas.GetPixelSize(range_x)
+        iterations = IterationsMandelbrotSet((100, 100), range_x, range_y, self.num_iter)
+
+        # Compute image histogram and its sum
+        hist = IterationsHistogram(iterations, self.num_iter)
+        hist_sum = np.sum(hist)
+
 
         # 01. COMPUTE FRACTAL ITERATIONS
         glViewport(0, 0, self.render_size[0], self.render_size[1])
@@ -587,7 +616,7 @@ class FractalRenderingApp():
         glUniform2dv(self.uniform_locations_iter['range_x'], 1, range_x.astype('float64'))
         glUniform2dv(self.uniform_locations_iter['range_y'], 1, range_y.astype('float64'))
         glUniform1d(self.uniform_locations_iter['pix_size'], pix_size)
-        glUniform1i(self.uniform_locations_iter['max_iter'], self.num_iter)
+        glUniform1i(self.uniform_locations_iter['num_iter'], self.num_iter)
         # Draw geometry
         glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
 
@@ -600,16 +629,25 @@ class FractalRenderingApp():
         glBindTexture(GL_TEXTURE_2D, self.texture_iter)
         glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.polygon_vao)
+        # Bind buffers
+        # TODO : Check if this is correct
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.cmap_buffer)
+        # glBindBuffer(GL_UNIFORM_BUFFER, self.hist_buffer)
+        # glBufferData(GL_UNIFORM_BUFFER, hist.nbytes, hist, GL_STATIC_READ)
+        # glBindBufferBase(GL_UNIFORM_BUFFER, 2, self.hist_buffer)
+
         # Send uniforms to the GPU
-        glUniform1i(self.uniform_locations_color['max_iter'], self.num_iter)
+        glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
+        glUniform1i(self.uniform_locations_color['cmap_size'], self.cmap_array.shape[0])
+        glUniform1i(self.uniform_locations_color['hist_sum'], hist_sum)
         # Draw geometry
         glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
 
         # # DEBUG - READ PIXELS
-        image_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
-        glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
-        image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
+        # image_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
+        # glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
+        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
+        # image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
 
 
         # 03. COPY FRAMEBUFFERS
@@ -625,6 +663,7 @@ class FractalRenderingApp():
         # 05. UPDATE THE TIMINGS
         self.clock.Update()
         self.clock.ShowFrameRate(self.window)
+
 
 
 # Main function call

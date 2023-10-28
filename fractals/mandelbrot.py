@@ -1,11 +1,12 @@
 import numba
 import numpy as np
 
+
 # TODO : Add edge case if max number of iterations has been reached and assign it number "0.0"
 
 # Mandelbrot set fractal
 @numba.njit(cache=True)
-def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, max_iter):
+def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
 
 	# Get physical dimensions of the image
 	img_size = img_iterations.shape[::-1]
@@ -23,21 +24,21 @@ def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, max_iter):
 			y = 0.0
 			x2 = 0.0
 			y2 = 0.0
-			num_iter = 0
-			while (x2 + y2 <= 4.0) and (num_iter < max_iter):
+			iter = 0
+			while (x2 + y2 <= 4.0) and (iter < num_iter):
 				y = 2 * x * y + y0
 				x = x2 - y2 + x0
 				x2 = x * x
 				y2 = y * y
-				num_iter += 1
+				iter += 1
 
 			# Assign iterations to correct pixel
-			img_iterations[i, j] = float(num_iter)
+			img_iterations[i, j] = float(iter)
 
 
 # Mandelbrot set fractal - parallel
 @numba.njit(cache=True, parallel=True)
-def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, max_iter):
+def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_iter):
 
 	# Get physical dimensions of the image
 	img_size = img_iterations.shape[::-1]
@@ -55,39 +56,39 @@ def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, max_i
 			y = 0.0
 			x2 = 0.0
 			y2 = 0.0
-			num_iter = 0
-			while (x2 + y2 <= 4.0) and (num_iter < max_iter):
+			iter = 0
+			while (x2 + y2 <= 4.0) and (iter < num_iter):
 				y = 2 * x * y + y0
 				x = x2 - y2 + x0
 				x2 = x * x
 				y2 = y * y
-				num_iter += 1
+				iter += 1
 
 			# Assign iterations to correct pixel
-			img_iterations[i, j] = float(num_iter)
+			img_iterations[i, j] = float(iter)
 
 
 # Wrapper function for Mandelbrot set fractal
-def IterationsMandelbrotSet(img_size, bounds_x, bounds_y, max_iter):
+def IterationsMandelbrotSet(img_size, bounds_x, bounds_y, num_iter):
 	# Convert the input to numpy arrays
 	img_size = np.asarray(img_size).astype('int')
 	bounds_x = np.asarray(bounds_x).astype('float')
 	bounds_y = np.asarray(bounds_y).astype('float')
 	# Compute the iterations
 	img_iterations = np.empty(shape=img_size[::-1], dtype='float')
-	iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, int(max_iter))
+	iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, int(num_iter))
 	# Return results
 	return img_iterations
 
 
 # Wrapper function for Mandelbrot set fractal - parallel
-def IterationsMandelbrotSet_parallel(img_size, bounds_x, bounds_y, max_iter):
+def IterationsMandelbrotSet_parallel(img_size, bounds_x, bounds_y, num_iter):
 	# Convert the input to numpy arrays
 	img_size = np.asarray(img_size).astype('int')
 	bounds_x = np.asarray(bounds_x).astype('float')
 	bounds_y = np.asarray(bounds_y).astype('float')
 	# Compute the iterations
 	img_iterations = np.empty(shape=img_size[::-1], dtype='float')
-	iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, int(max_iter))
+	iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, int(num_iter))
 	# Return results
 	return img_iterations

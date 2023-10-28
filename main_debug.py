@@ -17,7 +17,7 @@ if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
 
-# TODO : WORK ON THIS FILE !!!!
+# TODO : Check how to combine smooth coloring and histogram re-coloring
 # TODO : Check if everything is implemented correctly (histogram, colormaps...). Make example scripts.
 # TODO : Add cyclic colormapping option
 # TODO : Add smooth-iteration count for fractal coloring
@@ -32,8 +32,8 @@ def main():
 	img_size = (1000, 1000)
 	max_iter = 256
 	# Default view
-	range_x = (-1.5, 0.5)
-	range_y = (-1.0, 1.0)
+	range_x = (-2, 1)
+	range_y = (-1.5, 1.5)
 
 	# Compute number of fractal iterations
 	iterations = fract_mandelbrot.IterationsMandelbrotSet_parallel(img_size, range_x, range_y, max_iter)
@@ -54,23 +54,23 @@ def main():
 	hist_LR = fract_color.IterationsHistogram(iterations_LR, max_iter)
 
 	# Compute histogram sums
-	sum_hist = np.sum(hist)
-	sum_hist_LR = np.sum(hist_LR)
+	hist_sum = np.sum(hist)
+	hist_sum_LR = np.sum(hist_LR)
 
 	# PLOT - Show both histograms
-	plt.plot(hist / sum_hist, 'b-', label=f'Image size = {img_size[0]}x{img_size[1]}')
-	plt.plot(hist_LR / sum_hist_LR, 'r-', label=f'Image size = {img_size_LR[0]}x{img_size_LR[1]}')
+	plt.plot(hist / hist_sum, 'b-', label=f'Image size = {img_size[0]}x{img_size[1]}')
+	plt.plot(hist_LR / hist_sum_LR, 'r-', label=f'Image size = {img_size_LR[0]}x{img_size_LR[1]}')
 	plt.title('Histogram of fractal iterations')
 	plt.legend()
 	plt.show()
 
 	# Histogram coloring
-	iterations_norm = fract_color.HistogramRecoloring(iterations, hist, sum_hist)
-	iterations_norm_NEW = fract_color.HistogramRecoloring(iterations, hist_LR, sum_hist_LR)
+	iterations_norm = fract_color.HistogramRecoloring(iterations, hist, hist_sum)
+	iterations_norm_LR = fract_color.HistogramRecoloring(iterations, hist_LR, hist_sum_LR)
 
 	# PLOT - Show difference in High-Resolution (HR) and Low-Resolution (LR) histograms
 	extent = np.hstack((range_x, range_y))
-	img_difference = iterations_norm - iterations_norm_NEW
+	img_difference = iterations_norm - iterations_norm_LR
 	plt.imshow(np.flipud(img_difference), extent=extent, origin='upper', interpolation='none', cmap='bwr',
 			   vmin=-np.max(img_difference), vmax=np.max(img_difference))
 	plt.title('Difference between Full-Res and Low-Res histogram recoloring')
@@ -80,12 +80,13 @@ def main():
 	# Get matplotlib colormap
 	cmap = colormaps.get('ocean_r')
 	cmap_array = cmap(range(cmap.N))[:, 0:3].astype('float32')
-	# cmap_array = fract_color.cmap_wikipedia()
+	# cmap_array = fract_color.cmap_wikipedia()[:, 0:3]
 
-	# Apply colormap
+	# Chose between original and recolored image
 	# iter = iterations / max_iter
 	iter = iterations_norm
 
+	# Apply colormaps
 	# img_color = fract_color.ApplyColormap_nearest(iter, cmap_array)
 	img_color = fract_color.ApplyColormap_linear(iter, cmap_array)
 	# img_color = fract_color.ApplyColormap_cubic(iter, cmap_array)
