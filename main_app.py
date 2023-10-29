@@ -1,15 +1,15 @@
+import os
+import tripy
+import numpy as np
 import glfw
 import glfw.GLFW as GLFW_VAR
-import numpy as np
-import tripy
-from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
-from matplotlib import colormaps
+from PIL import Image
 
 # Add custom modules
-from fractals.color import IterationsHistogram, cmap_wikipedia
-from fractals.mandelbrot import IterationsMandelbrotSet
+from fractals.color import GetColormapArray, LoadColormapsFile
+
 
 '''
 O------------------------------------------------------------------------------O
@@ -40,8 +40,6 @@ class ClockGLFW:
 
     def ShowFrameTime(self, window):
         glfw.set_window_title(window, f'Frame time : {self.frame_time:.6f} s')
-
-
 
 
 '''
@@ -190,19 +188,39 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Make scaling speed dependent on the FPS
-# TODO : Add colormap options and change them via button
-# TODO : Add polygon triangulation and vertex coordinate sampling
+# TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
 # TODO : Check if OpenGL functions are implemented correctly
-# TODO : Move windowed quad to a separate function
-# TODO : Add functionality to save a screenshot of actual render to a file
 # TODO : Add text rendering to display information on the screen
 # TODO : Refactor the code to separate render passes
 
 
 class FractalRenderingApp():
 
-    def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0)):
+    def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0), cmap_file=None, output_dir=None):
+
+        # Fractal interation settings
+        self.num_iter = 64
+        self.num_iter_min = 64
+        self.num_iter_max = 2048
+        self.num_iter_step = 32
+
+        # Pixel scaling settings
+        self.pix_scale_min = 0.5
+        self.pix_scale_max = 8.0
+        self.pix_scale_step = 0.25
+
+        # Load colormaps file
+        self.cmap_id = 0
+        if cmap_file is None:
+            cmap_file = 'assets/cmaps_all.txt'
+        self.cmap_names = LoadColormapsFile(cmap_file)
+
+        # Create output directory
+        self.output_dir = output_dir
+        if self.output_dir is None:
+            self.output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
         # Create GLFW window and set the icon
         self.window = self.create_main_window(window_size)
@@ -223,25 +241,10 @@ class FractalRenderingApp():
         # Set GLFW callback functions
         self.set_callback_functions_glfw()
 
-        # Fractal interation variables
-        self.num_iter = 256
-        self.num_iter_min = 32
-        self.num_iter_max = 2048
-        self.num_iter_step = 32
-
-        # Pixel scaling variables
-        self.pix_scale_min = 0.5
-        self.pix_scale_max = 8.0
-        self.pix_scale_step = 0.25
-
         # Read shader source code
         vertex_source = self.read_shader_source('shaders/vertex.glsl')
         fragment_iter_source = self.read_shader_source('shaders/fragment_iter.glsl')
         fragment_color_source = self.read_shader_source('shaders/fragment_color.glsl')
-
-        # Replace compile-time constants
-        fragment_color_source = fragment_color_source.replace('INSERT_MAX_ITER', str(self.num_iter_max))
-        fragment_color_source = fragment_color_source.replace('INSERT_MAX_CMAP_SIZE', str(256))
 
         # Create shader programs
         self.program_iter = self.create_shader_program(vertex_source, fragment_iter_source)
@@ -251,66 +254,48 @@ class FractalRenderingApp():
         self.uniform_locations_iter = self.get_uniform_locations(
             self.program_iter, ['pix_size', 'range_x', 'range_y', 'num_iter'])
         self.uniform_locations_color = self.get_uniform_locations(
-            self.program_color, ['num_iter', 'cmap_size', 'hist_sum'])
+            self.program_color, ['num_iter'])
 
         # Create framebuffers
         self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
         self.framebuffer_color, self.texture_post = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
-
-        # TODO : Implement textured quad from a polygon
-        points = np.asarray([[0, 0], [0, self.canvas.size[1]], self.canvas.size, [self.canvas.size[0], 0]])
+        # TODO : Create textured polygon class
+        # Create vertices for textured polygon
         # points = np.asarray([[0, 0], [0, 600], [600, 600], [600, 400], [800, 400], [800, 0]])
-        triangles = np.asarray(tripy.earclip(points))
-        triangles = np.squeeze(triangles.reshape((1, -1, 2)))
-        self.num_triangles = triangles.shape[0]
+        points = np.asarray([[0, 0], [0, self.canvas.size[1]], self.canvas.size, [self.canvas.size[0], 0]])
+        textured_polygon_vertices = self.create_textured_polygon_vertices(points, self.canvas)
+        self.num_polygon_vertices = textured_polygon_vertices.shape[0]
 
-        # Create texture coordinates
-        triangles_gl = self.canvas.S2GL(triangles.T).T
-        triangles_texture = triangles / self.canvas.size
-        triangles_texture[:, 1] = np.abs(triangles_texture[:, 1] - 1.0)  # Flip texture along y-axis
-        textured_polygon_vertices = np.hstack((triangles_gl, triangles_texture)).astype('float32')
-
-        # Define Vertex Buffer Object (VBO)
+        # Polygon VBO and VAO
         self.polygon_buffer = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, self.polygon_buffer)
         glBufferData(GL_ARRAY_BUFFER, textured_polygon_vertices.nbytes, textured_polygon_vertices, GL_STATIC_DRAW)
-
-        # Define Vertex Array Object (VAO)
         self.polygon_vao = glGenVertexArrays(1)
         glBindVertexArray(self.polygon_vao)
-        glBindBuffer(GL_ARRAY_BUFFER, self.polygon_buffer)
-
-        # Enable VAO attributes (layout of the VBO)
+        # Enable VAO attributes
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(0))
         glEnableVertexAttribArray(1)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
 
 
-        # Colormap via Uniform Buffer Object (UBO)
-        cmap = colormaps.get('ocean_r')
-        self.cmap_array = cmap(range(cmap.N)).astype('float32')
-        # self.cmap_array = cmap_wikipedia()
-
+        # TODO : Move this to a seperate function
+        # Set colormap buffer
+        cmap = GetColormapArray(self.cmap_names[self.cmap_id])
         self.cmap_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
-        glBufferData(GL_UNIFORM_BUFFER, self.cmap_array.nbytes, self.cmap_array, GL_DYNAMIC_DRAW)
-
-        # Histogram via Uniform Buffer Object (UBO)
-        # self.hist_buffer = glGenBuffers(1)
-        # glBindBuffer(GL_UNIFORM_BUFFER, self.hist_buffer)
-
-        # glBufferData(GL_UNIFORM_BUFFER, hist.nbytes, hist, GL_DYNAMIC_DRAW)
+        glBufferData(GL_UNIFORM_BUFFER, cmap.nbytes, cmap, GL_DYNAMIC_DRAW)
+        # Bind the buffer
+        cmap_buffer_block_index = glGetUniformBlockIndex(self.program_color, 'cmap')
+        glBindBufferBase(GL_UNIFORM_BUFFER, cmap_buffer_block_index, self.cmap_buffer)
 
 
-        # Loop until the user closes the window
+        # Main app loop
         while self.window_open:
-
             # Draw call
             if not self.window_minimized:
                 self.draw_call()
-
             # Event handling
             glfw.poll_events()
             self.process_hold_keys()
@@ -319,14 +304,16 @@ class FractalRenderingApp():
 
         # TODO : Check if everything is deleted
         # Delete OpenGL buffers
-        glDeleteBuffers(1, [self.polygon_buffer])
+        glDeleteBuffers(2, [self.polygon_buffer, self.cmap_buffer])
         glDeleteVertexArrays(1, [self.polygon_vao])
         glDeleteFramebuffers(2, [self.framebuffer_iter, self.framebuffer_color])
         glDeleteTextures(2, [self.texture_iter, self.texture_post])
         glDeleteProgram(self.program_iter)
+        glDeleteProgram(self.program_color)
         # Terminate GLFW
         glfw.destroy_window(self.window)
         glfw.terminate()
+
 
 
     # O------------------------------------------------------------------------------O
@@ -414,7 +401,6 @@ class FractalRenderingApp():
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
             self.window_size_update(self.window_size, temp_pix_scale)
 
-
         # Decrease pixel scale
         if (key == glfw.KEY_KP_MULTIPLY and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
@@ -434,6 +420,20 @@ class FractalRenderingApp():
             elif (action == glfw.RELEASE):
                 self.keyboard_down_key_hold = False
 
+        # Next colormap
+        if (key == glfw.KEY_RIGHT and action == glfw.PRESS):
+            self.cmap_id += 1
+            if self.cmap_id >= len(self.cmap_names):
+                self.cmap_id = 0
+            self.colormap_update(self.cmap_names[self.cmap_id])
+
+        # Previous colormap
+        if (key == glfw.KEY_LEFT and action == glfw.PRESS):
+            self.cmap_id -= 1
+            if self.cmap_id < 0:
+                self.cmap_id = len(self.cmap_names) - 1
+            self.colormap_update(self.cmap_names[self.cmap_id])
+
 
     def callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
@@ -446,11 +446,11 @@ class FractalRenderingApp():
 
     def callback_mouse_scroll(self, window, x_offset, y_offset):
         # Zoom-in
-        if (int(y_offset) == 1):
-            self.canvas.ScaleIncrease(5.0 * self.canvas.scale_abs_step)
+        if (y_offset > 0):
+            self.canvas.ScaleIncrease(5.0 * self.canvas.scale_abs_step * abs(y_offset))
         # Zoom-out
-        if (int(y_offset) == -1):
-            self.canvas.ScaleDecrease(5.0 * self.canvas.scale_abs_step)
+        if (y_offset < 0):
+            self.canvas.ScaleDecrease(5.0 * self.canvas.scale_abs_step * abs(y_offset))
 
 
     def callback_cursor_position(self, window, x_pos, y_pos):
@@ -464,10 +464,12 @@ class FractalRenderingApp():
             self.canvas.UpdateShift()
         # Zoom-in
         if self.keyboard_up_key_hold:
-            self.canvas.ScaleIncrease(self.canvas.scale_abs_step)
+            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
+            self.canvas.ScaleIncrease(temp_scale_step)
         # Zoom-out
         if self.keyboard_down_key_hold:
-            self.canvas.ScaleDecrease(self.canvas.scale_abs_step)
+            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
+            self.canvas.ScaleDecrease(temp_scale_step)
 
 
     def window_size_update(self, size, pix_scale):
@@ -489,7 +491,6 @@ class FractalRenderingApp():
         print(f'Window size = {self.window_size}')
         print(f'Render size = {self.render_size}')
         print(f'Pixel scale = {self.pix_scale}')
-
 
 
     def get_current_window_monitor(self, glfw_window):
@@ -519,24 +520,30 @@ class FractalRenderingApp():
         return monitors[max_id]
 
 
+    def colormap_update(self, cmap_name):
+        cmap_array = GetColormapArray(cmap_name)
+        glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
+        # DEBUG
+        print(f'Cmap = {cmap_name}')
+
+
     # O------------------------------------------------------------------------------O
     # | OPENGL FUNCTIONS                                                             |
     # O------------------------------------------------------------------------------O
 
     def create_main_window(self, size):
         size = np.asarray(size).astype('int')
-
         # Initialize GLFW
         glfw.init()
         glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MAJOR, 4)
-        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 3)
+        glfw.window_hint(GLFW_VAR.GLFW_CONTEXT_VERSION_MINOR, 0)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_PROFILE, GLFW_VAR.GLFW_OPENGL_CORE_PROFILE)
         glfw.window_hint(GLFW_VAR.GLFW_OPENGL_FORWARD_COMPAT, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_SCALE_TO_MONITOR, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_DOUBLEBUFFER, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_RESIZABLE, GLFW_VAR.GLFW_TRUE)
         glfw.window_hint(GLFW_VAR.GLFW_FOCUSED, GLFW_VAR.GLFW_TRUE)
-
         # Create a GLFW window
         window = glfw.create_window(size[0], size[1], "Fractal Rendering", None, None)
         glfw.set_window_size_limits(window, 200, 200, GLFW_VAR.GLFW_DONT_CARE, GLFW_VAR.GLFW_DONT_CARE)
@@ -552,21 +559,29 @@ class FractalRenderingApp():
 
 
     def create_shader_program(self, vertex_src, fragment_src):
-
         # Compile the shaders
         vertex_shader = compileShader(vertex_src, GL_VERTEX_SHADER)
         fragment_shader = compileShader(fragment_src, GL_FRAGMENT_SHADER)
-
         # Create a program and link the shaders
         program = glCreateProgram()
         glAttachShader(program, vertex_shader)
         glAttachShader(program, fragment_shader)
         glLinkProgram(program)
-
         # Delete the shaders and return the program
         glDeleteShader(vertex_shader)
         glDeleteShader(fragment_shader)
         return program
+
+
+    def create_textured_polygon_vertices(self, points, canvas):
+        # Polygon triangulation
+        triangles = np.asarray(tripy.earclip(points))
+        triangles = np.squeeze(triangles.reshape((1, -1, 2)))
+        # Create texture coordinates
+        triangles_gl = canvas.S2GL(triangles.T).T
+        triangles_texture = triangles / canvas.size
+        triangles_texture[:, 1] = np.abs(triangles_texture[:, 1] - 1.0)  # Flip texture along y-axis
+        return np.hstack((triangles_gl, triangles_texture)).astype('float32')
 
 
     def get_uniform_locations(self, shader_program, uniform_names):
@@ -598,12 +613,6 @@ class FractalRenderingApp():
         # 00. COMPUTE FRAME VARIABLES
         range_x, range_y = self.canvas.GetRangeXY()
         pix_size = self.canvas.GetPixelSize(range_x)
-        iterations = IterationsMandelbrotSet((100, 100), range_x, range_y, self.num_iter)
-
-        # Compute image histogram and its sum
-        hist = IterationsHistogram(iterations, self.num_iter)
-        hist_sum = np.sum(hist)
-
 
         # 01. COMPUTE FRACTAL ITERATIONS
         glViewport(0, 0, self.render_size[0], self.render_size[1])
@@ -618,10 +627,9 @@ class FractalRenderingApp():
         glUniform1d(self.uniform_locations_iter['pix_size'], pix_size)
         glUniform1i(self.uniform_locations_iter['num_iter'], self.num_iter)
         # Draw geometry
-        glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
+        glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 02. FRACTAL COLORING
-        # glViewport(0, 0, self.render_size[0], self.render_size[1])
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_color)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_color)
@@ -629,26 +637,20 @@ class FractalRenderingApp():
         glBindTexture(GL_TEXTURE_2D, self.texture_iter)
         glActiveTexture(GL_TEXTURE0)
         glBindVertexArray(self.polygon_vao)
-        # Bind buffers
-        # TODO : Check if this is correct
-        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.cmap_buffer)
-        # glBindBuffer(GL_UNIFORM_BUFFER, self.hist_buffer)
-        # glBufferData(GL_UNIFORM_BUFFER, hist.nbytes, hist, GL_STATIC_READ)
-        # glBindBufferBase(GL_UNIFORM_BUFFER, 2, self.hist_buffer)
-
         # Send uniforms to the GPU
         glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
-        glUniform1i(self.uniform_locations_color['cmap_size'], self.cmap_array.shape[0])
-        glUniform1i(self.uniform_locations_color['hist_sum'], hist_sum)
         # Draw geometry
-        glDrawArrays(GL_TRIANGLES, 0, self.num_triangles)
+        glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
-        # # DEBUG - READ PIXELS
-        # image_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
+        # TODO : Re-factor this part of the code
+        # DEBUG - READ PIXELS
+        # img_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
         # glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
-        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_screenshot)
-        # image_screenshot = image_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
-
+        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, img_screenshot)
+        # img_screenshot = img_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
+        # pil_image = Image.fromarray(np.flipud(img_screenshot))
+        # filename = f'{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png'
+        # pil_image.save(os.path.join(self.output_dir, filename))
 
         # 03. COPY FRAMEBUFFERS
         glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
@@ -668,5 +670,5 @@ class FractalRenderingApp():
 
 # Main function call
 if __name__ == '__main__':
-    app = FractalRenderingApp()
+    app = FractalRenderingApp(cmap_file='assets/cmaps_sequential.txt')
 

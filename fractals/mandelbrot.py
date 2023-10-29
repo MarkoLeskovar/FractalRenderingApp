@@ -2,8 +2,6 @@ import numba
 import numpy as np
 
 
-# TODO : Add edge case if max number of iterations has been reached and assign it number "0.0"
-
 # Mandelbrot set fractal
 @numba.njit(cache=True)
 def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):

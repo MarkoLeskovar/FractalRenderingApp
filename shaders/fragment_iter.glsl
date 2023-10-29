@@ -1,4 +1,4 @@
-#version 430 core
+#version 400 core
 
 // IN - Fragment coordinate
 layout(pixel_center_integer ) in vec4 gl_FragCoord;
@@ -40,8 +40,38 @@ float ComputeIterationCountMandelbrotSet(dvec2 pix_coord, int max_iter)
         y2 = y * y;
         iter += 1;
     }
-    // Return iterations
     return float(iter);
+}
+
+// FUNCTION - Compute number of iterations
+float ComputeIterationCountMandelbrotSet_smooth(dvec2 pix_coord, int max_iter)
+{
+    // Initialize variables
+    double x = 0.0;
+    double y = 0.0;
+    double x2 = 0.0;
+    double y2 = 0.0;
+    int iter = 0;
+    // Evaluate number of iterations
+    while ((x2 + y2 <= 4.0) && (iter < num_iter))
+    {
+        y = 2 * x * y + pix_coord.y;
+    	x = x2 - y2 + pix_coord.x;
+    	x2 = x * x;
+        y2 = y * y;
+        iter += 1;
+    }
+    // Smooth coloring
+    if (iter < num_iter)
+    {
+        float log_zn = log(float(x2 + y2)) / 2.0;
+        float nu = log(log_zn / log(2.0)) / log(2.0);
+        return float(iter) + 1.0 - nu;
+    }
+    else
+    {
+        return float(iter);
+    }
 }
 
 
@@ -52,5 +82,5 @@ void main()
     dvec2 pixel_coordinate = ComputePixelCoordinate(range_x, range_y, pix_size);
 
     // Compute iteration count
-    iterations = ComputeIterationCountMandelbrotSet(pixel_coordinate, num_iter);
+    iterations = ComputeIterationCountMandelbrotSet_smooth(pixel_coordinate, num_iter);
 }

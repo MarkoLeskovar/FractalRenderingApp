@@ -1,15 +1,12 @@
 import os
-import time
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import colormaps
 from PIL import Image, ImageDraw, ImageFont
 
 # Import custom modules
 import fractals.color as fract_color
 import fractals.mandelbrot as fract_mandelbrot
-
 
 # Define path to output folder and create it
 path_to_output = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
@@ -17,12 +14,8 @@ if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
 
-# TODO : Check how to combine smooth coloring and histogram re-coloring
-# TODO : Check if everything is implemented correctly (histogram, colormaps...). Make example scripts.
-# TODO : Add cyclic colormapping option
 # TODO : Add smooth-iteration count for fractal coloring
 # TODO : Add Julia set fractal
-# TODO : Add "HSV2RGB" a "RGB2HSV" functions
 
 
 # Define main function
@@ -77,19 +70,17 @@ def main():
 	plt.colorbar()
 	plt.show()
 
-	# Get matplotlib colormap
-	cmap = colormaps.get('ocean_r')
-	cmap_array = cmap(range(cmap.N))[:, 0:3].astype('float32')
-	# cmap_array = fract_color.cmap_wikipedia()[:, 0:3]
-
 	# Chose between original and recolored image
 	# iter = iterations / max_iter
 	iter = iterations_norm
 
+	# Get colormap
+	cmap = fract_color.GetColormapArray('ocean_r')
+
 	# Apply colormaps
-	# img_color = fract_color.ApplyColormap_nearest(iter, cmap_array)
-	img_color = fract_color.ApplyColormap_linear(iter, cmap_array)
-	# img_color = fract_color.ApplyColormap_cubic(iter, cmap_array)
+	# img_color = fract_color.ApplyColormap_nearest(iter, cmap)
+	img_color = fract_color.ApplyColormap_linear(iter, cmap)
+	# img_color = fract_color.ApplyColormap_cubic(iter, cmap)
 
 	# Convert to floats to RGB
 	img_color = (255 * img_color).astype('uint8')
