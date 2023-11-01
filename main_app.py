@@ -3,7 +3,6 @@ import tripy
 import numpy as np
 import glfw
 import glfw.GLFW as GLFW_VAR
-import datetime
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
 from PIL import Image
@@ -11,7 +10,25 @@ from PIL import Image
 # Add custom modules
 from fractals.color import GetColormapArray, LoadColormapsFile
 
+# Default keymap dictionary
+KEYMAP = {
+    'EXIT': 'KEY_ESCAPE',
+    'VSYNC': 'KEY_V',
+    'FULLSCREEN': 'KEY_F',
+    'SCALE_INCREASE': 'KEY_UP',
+    'SCALE_DECREASE': 'KEY_DOWN',
+    'SCALE_RESET': 'KEY_R',
+    'ITER_INCREASE': 'KEY_KP_ADD',
+    'ITER_DECREASE': 'KEY_KP_SUBTRACT',
+    'PIX_SCALE_INCREASE': 'KEY_KP_MULTIPLY',
+    'PIX_SCALE_DECREASE': 'KEY_KP_DIVIDE',
+    'CMAP_NEXT': 'KEY_RIGHT',
+    'CMAP_PREVIOUS': 'KEY_LEFT',
+    'SCREENSHOT': 'KEY_S',
+    }
 
+# Default colormaps list
+COLORMAP = ['cet_l_tritanopic_krjcw1_r', 'jungle_r', 'apple_r']
 
 '''
 O------------------------------------------------------------------------------O
@@ -19,8 +36,8 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
+# TODO : Load keymaps from an external file
 # TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
-# TODO : Load keymaps into a external file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add text rendering to display information on the screen
 # TODO : Refactor the code to separate render passes
@@ -43,9 +60,9 @@ class FractalRenderingApp():
 
         # Load colormaps file
         self.cmap_id = 0
-        if cmap_file is None:
-            cmap_file = 'assets/cmaps_all.txt'
-        self.cmap_names = LoadColormapsFile(cmap_file)
+        self.cmap_names = COLORMAP
+        if cmap_file is not None:
+            self.cmap_names = LoadColormapsFile(cmap_file)
 
         # Create output directory for screenshots
         self.output_dir = output_dir
@@ -192,12 +209,12 @@ class FractalRenderingApp():
 
 
     def callback_keyboad_button(self, window, key, scancode, action, mods):
-        # Quit the app
-        if (key == glfw.KEY_ESCAPE and action == glfw.PRESS):
+        # Exit the app
+        if (key == getattr(glfw, KEYMAP['EXIT']) and action == glfw.PRESS):
             self.window_open = False
 
         # Toggle fullscreen
-        if (key == glfw.KEY_F and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['FULLSCREEN']) and action == glfw.PRESS):
             # Make fullscreen
             if not self.window_fullscreen:
                 self.window_fullscreen = True
@@ -213,68 +230,68 @@ class FractalRenderingApp():
                                         self.window_size_previous[0], self.window_size_previous[1], glfw.DONT_CARE)
 
         # Increase number of iterations
-        if (key == glfw.KEY_KP_ADD and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['ITER_INCREASE']) and action == glfw.PRESS):
             self.num_iter = min(self.num_iter + self.num_iter_step, self.num_iter_max)
             # DEBUG
             print(f'Fractal iterations = {self.num_iter}')
 
         # Decrease number of iterations
-        if (key == glfw.KEY_KP_SUBTRACT and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['ITER_DECREASE']) and action == glfw.PRESS):
             self.num_iter = max(self.num_iter - self.num_iter_step, self.num_iter_min)
             # DEBUG
             print(f'Fractal iterations = {self.num_iter}')
 
         # Reset shift and scale
-        if (key == glfw.KEY_R and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['SCALE_RESET']) and action == glfw.PRESS):
             self.canvas.ResetShiftAndScale()
 
         # Increase pixel scale
-        if (key == glfw.KEY_KP_DIVIDE and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['PIX_SCALE_INCREASE']) and action == glfw.PRESS):
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
             self.update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
-        if (key == glfw.KEY_KP_MULTIPLY and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['PIX_SCALE_DECREASE']) and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
             self.update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
-        if (key == glfw.KEY_UP):
+        if (key == getattr(glfw, KEYMAP['SCALE_INCREASE'])):
             if (action == glfw.PRESS):
                 self.keyboard_up_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_up_key_hold = False
 
         # Hold zoom-out
-        if (key == glfw.KEY_DOWN):
+        if (key == getattr(glfw, KEYMAP['SCALE_DECREASE'])):
             if (action == glfw.PRESS):
                 self.keyboard_down_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_down_key_hold = False
 
         # Next colormap
-        if (key == glfw.KEY_RIGHT and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['CMAP_NEXT']) and action == glfw.PRESS):
             self.cmap_id += 1
             if self.cmap_id >= len(self.cmap_names):
                 self.cmap_id = 0
             self.update_colormap(self.cmap_names[self.cmap_id])
 
         # Previous colormap
-        if (key == glfw.KEY_LEFT and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['CMAP_PREVIOUS']) and action == glfw.PRESS):
             self.cmap_id -= 1
             if self.cmap_id < 0:
                 self.cmap_id = len(self.cmap_names) - 1
             self.update_colormap(self.cmap_names[self.cmap_id])
 
         # Toggle vsync for uncapped frame rate
-        if (key == glfw.KEY_V and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['VSYNC']) and action == glfw.PRESS):
             self.window_vsync = not self.window_vsync
             glfw.swap_interval(int(self.window_vsync))
 
         # TODO : Format a code in a nice way !!!
         # TODO : Add metadata information function (getFucntion)
         # Save a screenshot
-        if (key == glfw.KEY_S and action == glfw.PRESS):
+        if (key == getattr(glfw, KEYMAP['SCREENSHOT']) and action == glfw.PRESS):
             os.makedirs(self.output_dir, exist_ok=True)
             # Get current screenshot counter
             counter = 1
@@ -286,6 +303,7 @@ class FractalRenderingApp():
             output_image = self.read_pixels(self.framebuffer_color, self.render_size)
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
+
 
     def callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
@@ -675,7 +693,6 @@ class ClockGLFW:
 
     def ShowFrameTime(self, window):
         glfw.set_window_title(window, f'Frame time : {self.frame_time:.6f} s')
-
 
 
 # Main function call
