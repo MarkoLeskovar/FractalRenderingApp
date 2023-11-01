@@ -54,7 +54,7 @@ def LoadColormapsFile(cmap_file):
 
 def GetColormapArray(cmap_name):
     cmap = getattr(cmaps, cmap_name)
-    return cmap(range(256)).astype('float32')
+    return cmap(range(256))
 
 
 @numba.njit(cache=True)

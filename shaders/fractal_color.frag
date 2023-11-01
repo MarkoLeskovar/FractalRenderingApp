@@ -34,6 +34,7 @@ void main()
 
     // Fractional iteration count [0...1]
     float iterations_norm = iterations / float(num_iter);
+//    iterations_norm = 0.5 * sin(6.28 * (iterations_norm + 0.5)) + 0.5;
 
     // Apply colormap
     fragment_color = ApplyColormap(iterations_norm);

@@ -3,182 +3,13 @@ import tripy
 import numpy as np
 import glfw
 import glfw.GLFW as GLFW_VAR
+import datetime
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
 from PIL import Image
 
 # Add custom modules
 from fractals.color import GetColormapArray, LoadColormapsFile
-
-
-'''
-O------------------------------------------------------------------------------O
-| GLFW CLOCK CLASS                                                             |
-O------------------------------------------------------------------------------O
-'''
-
-class ClockGLFW:
-    def __init__(self):
-        self.current_time = glfw.get_time()
-        self.previous_time = self.current_time
-        self.frame_time = 1.0
-        self.delta_time = 0.0
-        self.num_frames = 0
-
-    def Update(self):
-        self.num_frames += 1
-        self.current_time = glfw.get_time()
-        self.delta_time += self.current_time - self.previous_time
-        self.previous_time = self.current_time
-        if (self.delta_time >= 0.2):
-            self.frame_time = self.delta_time / self.num_frames
-            self.delta_time = 0.0
-            self.num_frames = 0
-
-    def ShowFrameRate(self, window):
-        glfw.set_window_title(window, f'Frame rate : {int(np.round(1.0 / self.frame_time))} FPS')
-
-    def ShowFrameTime(self, window):
-        glfw.set_window_title(window, f'Frame time : {self.frame_time:.6f} s')
-
-
-'''
-O------------------------------------------------------------------------------O
-| CANVAS CLASS FOR WINDOW DRAWING AREA HANDLING                                |
-O------------------------------------------------------------------------------O
-'''
-
-# TODO : Update variables only when needed and not on every iteration
-
-class Canvas():
-
-    def __init__(self, size=(400, 300), range_x=(-1, 1)):
-        self.size = np.asarray(size).astype('int')
-        self.range_x_default = np.asarray(range_x).astype('float')
-
-        # Scaling settings
-        self.scale_rel_min = 0.5
-        self.scale_rel_max = 1.0e15
-        self.scale_abs_step = 0.02
-
-        # Default shift and scale variables
-        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
-        self.shift = self.shift_default.copy()
-        self.scale_abs = self.scale_abs_default
-
-        # Initialize mouse position
-        self.mouse_pos = np.asarray([0, 0], dtype='float')
-        self.mouse_pos_previous = self.mouse_pos.copy()
-
-
-    def GetShiftAndScale(self, range_x, range_y):
-        # Compute the scaling factor
-        size_x = range_x[1] - range_x[0]
-        size_y = range_y[1] - range_y[0]
-        pix_size = size_x / self.size[0]
-        scale = 1.0 / pix_size
-        # Compute the shift
-        temp_shift_x = 0.5 * self.size[0]  # Offset by image center
-        temp_shift_x -= (range_x[0] + 0.5 * size_x) * scale  # Offset by x-extent
-        temp_shift_y = -0.5 * self.size[1]  # Offset by image center
-        temp_shift_y += (range_y[0] + 0.5 * size_y) * scale  # Offset by y-extent
-        shift = np.asarray([temp_shift_x, temp_shift_y], dtype='float')
-        # Return results
-        return shift, scale
-
-
-    def GetRangeXY(self):
-        TL_w = self.S2W(np.asarray([0.0, 0.0]))
-        BR_W = self.S2W(np.asarray(self.size))
-        range_x = np.asarray([TL_w[0], BR_W[0]])
-        range_y = np.asarray([BR_W[1], TL_w[1]])
-        return range_x, range_y
-
-
-    def GetPixelSize(self, range_x):
-        return (range_x[1] - range_x[0]) / self.size[0]
-
-
-    def ResetShiftAndScale(self):
-        self.shift = self.shift_default.copy()
-        self.scale_abs = self.scale_abs_default
-
-
-    def Resize(self, size):
-        range_x, range_y = self.GetRangeXY()
-        self.size = np.asarray(size).astype('int')
-        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
-        self.shift, self.scale_abs = self.GetShiftAndScale(range_x, range_y)
-
-
-    def UpdateShift(self):
-        delta_shift = self.mouse_pos - self.mouse_pos_previous
-        self.shift += delta_shift
-
-
-    def ScaleIncrease(self, scale_step):
-        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
-        self.scale_abs *= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
-        if (self.scale_abs / self.scale_abs_default) > self.scale_rel_max:
-            self.scale_abs = self.scale_rel_max * self.scale_abs_default  # Max zoom
-        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
-        # DEBUG
-        print(f'Window scale = {self.scale_abs / self.scale_abs_default:.2e}')
-
-
-    def ScaleDecrease(self, scale_step):
-        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
-        self.scale_abs /= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
-        if (self.scale_abs / self.scale_abs_default) < self.scale_rel_min:
-            self.scale_abs = self.scale_rel_min * self.scale_abs_default  # Min zoom
-        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
-        # DEBUG
-        print(f'Window scale = {self.scale_abs / self.scale_abs_default:.2e}')
-
-
-    def SetMousePos(self, pos):
-        self.mouse_pos = np.asarray(pos).astype('float')
-
-
-    def UpdateMousePosPrevious(self):
-        self.mouse_pos_previous = self.mouse_pos.copy()
-
-
-    # O------------------------------------------------------------------------------O
-    # | SCREEN-TO-WORLD & WORLD-TO-SCREEN TRANSFORMATIONS                            |
-    # O------------------------------------------------------------------------------O
-
-    def S2W(self, points):
-        points = np.asarray(points)
-        output_points = np.empty(points.shape, dtype='float')
-        output_points[0] = (points[0] - self.shift[0]) / self.scale_abs
-        output_points[1] = (self.size[1] + self.shift[1] - points[1]) / self.scale_abs
-        return output_points
-
-    def W2S(self, points):
-        points = np.asarray(points)
-        output_points = np.empty(points.shape, dtype='float')
-        output_points[0] = self.shift[0] + points[0] * self.scale_abs
-        output_points[1] = self.size[1] + self.shift[1] - points[1] * self.scale_abs
-        return output_points
-
-    def S2GL(self, points):
-        output_points = np.asarray(points).astype('float')
-        output_points = (2.0 * (output_points.T / self.size) - 1.0).T
-        output_points[1] *= -1.0
-        return output_points
-
-    def GL2S(self, points):
-        output_points = np.asarray(points).astype('float')
-        output_points[1] *= -1.0
-        output_points = (0.5 * (output_points.T + 1.0) * self.size).T
-        return output_points
-
-    def W2GL(self, points):
-        return self.S2GL(self.W2S(points))
-
-    def GL2W(self, points):
-        return self.S2W(self.GL2S(points))
 
 
 
@@ -189,6 +20,7 @@ O------------------------------------------------------------------------------O
 '''
 
 # TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
+# TODO : Load keymaps into a external file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add text rendering to display information on the screen
 # TODO : Refactor the code to separate render passes
@@ -215,16 +47,15 @@ class FractalRenderingApp():
             cmap_file = 'assets/cmaps_all.txt'
         self.cmap_names = LoadColormapsFile(cmap_file)
 
-        # Create output directory
+        # Create output directory for screenshots
         self.output_dir = output_dir
         if self.output_dir is None:
             self.output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
 
         # Create GLFW window and set the icon
-        self.window = self.create_main_window(window_size)
-        icon = Image.open('assets/mandelbrot.png').resize((32, 32))
+        self.window_vsync = True
+        self.window = self.create_main_window(window_size, self.window_vsync)
+        icon = Image.open('assets/mandelbrot_set.png').resize((32, 32))
         glfw.set_window_icon(self.window, 1, icon)
 
         # Get the actual window size
@@ -242,23 +73,24 @@ class FractalRenderingApp():
         self.set_callback_functions_glfw()
 
         # Read shader source code
-        vertex_source = self.read_shader_source('shaders/vertex.glsl')
-        fragment_iter_source = self.read_shader_source('shaders/fragment_iter.glsl')
-        fragment_color_source = self.read_shader_source('shaders/fragment_color.glsl')
+        base_vert_source = self.read_shader_source('shaders/base.vert')
+        color_frag_source = self.read_shader_source('shaders/fractal_color.frag')
+        mandelbrot_frag_source = self.read_shader_source('shaders/mandelbrot_set.frag')
 
         # Create shader programs
-        self.program_iter = self.create_shader_program(vertex_source, fragment_iter_source)
-        self.program_color = self.create_shader_program(vertex_source, fragment_color_source)
+        self.program_mandelbrot = self.create_shader_program(base_vert_source, mandelbrot_frag_source)
+        self.program_color = self.create_shader_program(base_vert_source, color_frag_source)
 
         # Get uniform locations
-        self.uniform_locations_iter = self.get_uniform_locations(
-            self.program_iter, ['pix_size', 'range_x', 'range_y', 'num_iter'])
+        self.uniform_locations_mandelbrot = self.get_uniform_locations(
+            self.program_mandelbrot, ['pix_size', 'range_x', 'range_y', 'num_iter'])
         self.uniform_locations_color = self.get_uniform_locations(
             self.program_color, ['num_iter'])
 
         # Create framebuffers
-        self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        self.framebuffer_mandelbrot, self.texture_mandelbrot = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
         self.framebuffer_color, self.texture_post = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+
 
         # TODO : Create textured polygon class
         # Create vertices for textured polygon
@@ -282,7 +114,7 @@ class FractalRenderingApp():
 
         # TODO : Move this to a seperate function
         # Set colormap buffer
-        cmap = GetColormapArray(self.cmap_names[self.cmap_id])
+        cmap = GetColormapArray(self.cmap_names[self.cmap_id]).astype('float32')
         self.cmap_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
         glBufferData(GL_UNIFORM_BUFFER, cmap.nbytes, cmap, GL_DYNAMIC_DRAW)
@@ -306,9 +138,9 @@ class FractalRenderingApp():
         # Delete OpenGL buffers
         glDeleteBuffers(2, [self.polygon_buffer, self.cmap_buffer])
         glDeleteVertexArrays(1, [self.polygon_vao])
-        glDeleteFramebuffers(2, [self.framebuffer_iter, self.framebuffer_color])
-        glDeleteTextures(2, [self.texture_iter, self.texture_post])
-        glDeleteProgram(self.program_iter)
+        glDeleteFramebuffers(2, [self.framebuffer_mandelbrot, self.framebuffer_color])
+        glDeleteTextures(2, [self.texture_mandelbrot, self.texture_post])
+        glDeleteProgram(self.program_mandelbrot)
         glDeleteProgram(self.program_color)
         # Terminate GLFW
         glfw.destroy_window(self.window)
@@ -351,12 +183,12 @@ class FractalRenderingApp():
     def callback_window_resize(self, window, width, height):
         if not self.window_minimized:
             temp_size = glfw.get_framebuffer_size(self.window)
-            self.window_size_update(temp_size, self.pix_scale)
+            self.update_window_size(temp_size, self.pix_scale)
             self.draw_call()
 
 
     def callback_content_scale(self, window, scale_x, scale_y):
-        self.window_size_update(self.window_size, scale_x)
+        self.update_window_size(self.window_size, scale_x)
 
 
     def callback_keyboad_button(self, window, key, scancode, action, mods):
@@ -399,12 +231,12 @@ class FractalRenderingApp():
         # Increase pixel scale
         if (key == glfw.KEY_KP_DIVIDE and action == glfw.PRESS):
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
-            self.window_size_update(self.window_size, temp_pix_scale)
+            self.update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
         if (key == glfw.KEY_KP_MULTIPLY and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
-            self.window_size_update(self.window_size, temp_pix_scale)
+            self.update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
         if (key == glfw.KEY_UP):
@@ -425,15 +257,35 @@ class FractalRenderingApp():
             self.cmap_id += 1
             if self.cmap_id >= len(self.cmap_names):
                 self.cmap_id = 0
-            self.colormap_update(self.cmap_names[self.cmap_id])
+            self.update_colormap(self.cmap_names[self.cmap_id])
 
         # Previous colormap
         if (key == glfw.KEY_LEFT and action == glfw.PRESS):
             self.cmap_id -= 1
             if self.cmap_id < 0:
                 self.cmap_id = len(self.cmap_names) - 1
-            self.colormap_update(self.cmap_names[self.cmap_id])
+            self.update_colormap(self.cmap_names[self.cmap_id])
 
+        # Toggle vsync for uncapped frame rate
+        if (key == glfw.KEY_V and action == glfw.PRESS):
+            self.window_vsync = not self.window_vsync
+            glfw.swap_interval(int(self.window_vsync))
+
+        # TODO : Format a code in a nice way !!!
+        # TODO : Add metadata information function (getFucntion)
+        # Save a screenshot
+        if (key == glfw.KEY_S and action == glfw.PRESS):
+            os.makedirs(self.output_dir, exist_ok=True)
+            # Get current screenshot counter
+            counter = 1
+            output_files = os.listdir(self.output_dir)
+            if len(output_files) > 0:
+                temp_list = sorted([int(x.split('.')[0]) for x in output_files])
+                counter = temp_list[-1] + 1
+            # Read pixels and save the image
+            output_image = self.read_pixels(self.framebuffer_color, self.render_size)
+            image_pil = Image.fromarray(np.flipud(output_image))
+            image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
     def callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
@@ -447,10 +299,12 @@ class FractalRenderingApp():
     def callback_mouse_scroll(self, window, x_offset, y_offset):
         # Zoom-in
         if (y_offset > 0):
-            self.canvas.ScaleIncrease(5.0 * self.canvas.scale_abs_step * abs(y_offset))
+            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
+            self.canvas.ScaleIncrease(temp_scale_step)
         # Zoom-out
         if (y_offset < 0):
-            self.canvas.ScaleDecrease(5.0 * self.canvas.scale_abs_step * abs(y_offset))
+            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
+            self.canvas.ScaleDecrease(temp_scale_step)
 
 
     def callback_cursor_position(self, window, x_pos, y_pos):
@@ -472,7 +326,7 @@ class FractalRenderingApp():
             self.canvas.ScaleDecrease(temp_scale_step)
 
 
-    def window_size_update(self, size, pix_scale):
+    def update_window_size(self, size, pix_scale):
         # Update mouse position
         temp_mp_s = self.canvas.mouse_pos * (self.pix_scale / pix_scale)
         self.canvas.SetMousePos(temp_mp_s)
@@ -483,14 +337,23 @@ class FractalRenderingApp():
         self.render_size = (self.window_size / self.pix_scale).astype('int')
         self.canvas.Resize(self.render_size)
         # Update OpenGL framebuffers
-        glDeleteFramebuffers(2, [self.framebuffer_iter, self.framebuffer_color])
-        glDeleteTextures(2, [self.texture_iter, self.texture_post])
-        self.framebuffer_iter, self.texture_iter = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
+        glDeleteFramebuffers(2, [self.framebuffer_mandelbrot, self.framebuffer_color])
+        glDeleteTextures(2, [self.texture_mandelbrot, self.texture_post])
+        self.framebuffer_mandelbrot, self.texture_mandelbrot = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
         self.framebuffer_color, self.texture_post = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
         # DEBUG
         print(f'Window size = {self.window_size}')
         print(f'Render size = {self.render_size}')
         print(f'Pixel scale = {self.pix_scale}')
+
+
+    def update_colormap(self, cmap_name):
+        cmap_array = GetColormapArray(cmap_name).astype('float32')
+        # Update OpenGL framebuffers
+        glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
+        # DEBUG
+        print(f'Cmap = {cmap_name}')
 
 
     def get_current_window_monitor(self, glfw_window):
@@ -502,8 +365,8 @@ class FractalRenderingApp():
         # Get window bounding box
         window_TL = np.asarray(glfw.get_window_pos(glfw_window))
         window_BR = window_TL + np.asarray(glfw.get_window_size(glfw_window))
-        # Loop over all monitors to find the largest overlap
-        overlap = np.empty(num_monitors, dtype='int')
+        # Loop over all monitors to find the one with largest overlapping area
+        overlap_area = np.empty(num_monitors, dtype='int')
         for i in range(num_monitors):
             # Get monitor bounding box
             video_mode = glfw.get_video_mode(monitors[i])
@@ -514,25 +377,17 @@ class FractalRenderingApp():
             max_x = np.minimum(window_BR[0], monitor_BR[0])
             min_y = np.maximum(window_TL[1], monitor_TL[1])
             max_y = np.minimum(window_BR[1], monitor_BR[1])
-            overlap[i] = (max_x - min_x) * (max_y - min_y)
+            overlap_area[i] = (max_x - min_x) * (max_y - min_y)
         # Return monitor with the highest overlap
-        max_id = np.argmax(overlap)
+        max_id = np.argmax(overlap_area)
         return monitors[max_id]
-
-
-    def colormap_update(self, cmap_name):
-        cmap_array = GetColormapArray(cmap_name)
-        glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
-        # DEBUG
-        print(f'Cmap = {cmap_name}')
 
 
     # O------------------------------------------------------------------------------O
     # | OPENGL FUNCTIONS                                                             |
     # O------------------------------------------------------------------------------O
 
-    def create_main_window(self, size):
+    def create_main_window(self, size, vsync=True):
         size = np.asarray(size).astype('int')
         # Initialize GLFW
         glfw.init()
@@ -548,7 +403,7 @@ class FractalRenderingApp():
         window = glfw.create_window(size[0], size[1], "Fractal Rendering", None, None)
         glfw.set_window_size_limits(window, 200, 200, GLFW_VAR.GLFW_DONT_CARE, GLFW_VAR.GLFW_DONT_CARE)
         glfw.make_context_current(window)
-        glfw.swap_interval(1)  # V-sync
+        glfw.swap_interval(int(vsync))  # V-sync (refresh rate limit)
         return window
 
 
@@ -573,9 +428,9 @@ class FractalRenderingApp():
         return program
 
 
-    def create_textured_polygon_vertices(self, points, canvas):
+    def create_textured_polygon_vertices(self, points_S, canvas):
         # Polygon triangulation
-        triangles = np.asarray(tripy.earclip(points))
+        triangles = np.asarray(tripy.earclip(points_S))
         triangles = np.squeeze(triangles.reshape((1, -1, 2)))
         # Create texture coordinates
         triangles_gl = canvas.S2GL(triangles.T).T
@@ -598,7 +453,7 @@ class FractalRenderingApp():
         # Create a texture for a frame-buffer
         texture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, gl_internalformat, size[0], size[1], 0, gl_format, gl_type,None)
+        glTexImage2D(GL_TEXTURE_2D, 0, gl_internalformat, size[0], size[1], 0, gl_format, gl_type, None)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
@@ -608,49 +463,45 @@ class FractalRenderingApp():
         return framebuffer, texture
 
 
+    def read_pixels(self, gl_framebuffer, framebuffer_size):
+        # Initialize output image
+        image_array = np.empty(shape=(framebuffer_size[0] * framebuffer_size[1] * 3), dtype='uint8')
+        # Read pixels from the selected framebuffer
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl_framebuffer)
+        glReadPixels(0, 0, framebuffer_size[0], framebuffer_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
+        # Reshape and save the image
+        return image_array.reshape((framebuffer_size[1], framebuffer_size[0], 3))
+
+
     def draw_call(self):
 
-        # 00. COMPUTE FRAME VARIABLES
-        range_x, range_y = self.canvas.GetRangeXY()
-        pix_size = self.canvas.GetPixelSize(range_x)
-
-        # 01. COMPUTE FRACTAL ITERATIONS
+        # 01. COMPUTE MANDELBROT ITERATIONS
         glViewport(0, 0, self.render_size[0], self.render_size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_iter)
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_mandelbrot)
         glClear(GL_COLOR_BUFFER_BIT)
-        glUseProgram(self.program_iter)
-        # Bind resources
-        glBindVertexArray(self.polygon_vao)
+        glUseProgram(self.program_mandelbrot)
         # Send uniforms to the GPU
-        glUniform2dv(self.uniform_locations_iter['range_x'], 1, range_x.astype('float64'))
-        glUniform2dv(self.uniform_locations_iter['range_y'], 1, range_y.astype('float64'))
-        glUniform1d(self.uniform_locations_iter['pix_size'], pix_size)
-        glUniform1i(self.uniform_locations_iter['num_iter'], self.num_iter)
+        glUniform2dv(self.uniform_locations_mandelbrot['range_x'], 1, self.canvas.range_x.astype('float64'))
+        glUniform2dv(self.uniform_locations_mandelbrot['range_y'], 1, self.canvas.range_y.astype('float64'))
+        glUniform1d(self.uniform_locations_mandelbrot['pix_size'], 1.0 / self.canvas.scale_abs)
+        glUniform1i(self.uniform_locations_mandelbrot['num_iter'], self.num_iter)
         # Draw geometry
+        glBindVertexArray(self.polygon_vao)
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 02. FRACTAL COLORING
+        glViewport(0, 0, self.render_size[0], self.render_size[1])
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_color)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_color)
         # Bind resources
-        glBindTexture(GL_TEXTURE_2D, self.texture_iter)
+        glBindTexture(GL_TEXTURE_2D, self.texture_mandelbrot)
         glActiveTexture(GL_TEXTURE0)
-        glBindVertexArray(self.polygon_vao)
         # Send uniforms to the GPU
         glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
         # Draw geometry
+        glBindVertexArray(self.polygon_vao)
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
-
-        # TODO : Re-factor this part of the code
-        # DEBUG - READ PIXELS
-        # img_screenshot = np.empty(shape=(self.render_size[0] * self.render_size[1] * 3), dtype='uint8')
-        # glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
-        # glReadPixels(0, 0, self.render_size[0], self.render_size[1], GL_RGB, GL_UNSIGNED_BYTE, img_screenshot)
-        # img_screenshot = img_screenshot.reshape((self.render_size[1], self.render_size[0], 3))
-        # pil_image = Image.fromarray(np.flipud(img_screenshot))
-        # filename = f'{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png'
-        # pil_image.save(os.path.join(self.output_dir, filename))
 
         # 03. COPY FRAMEBUFFERS
         glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
@@ -659,12 +510,171 @@ class FractalRenderingApp():
                           0, 0, self.window_size[0], self.window_size[1],
                           GL_COLOR_BUFFER_BIT, GL_NEAREST)
 
-        # 04. SWAP BUFFERS
+        # 04. SWAP BUFFERS AND UPDATE TIMINGS
         glfw.swap_buffers(self.window)
-
-        # 05. UPDATE THE TIMINGS
         self.clock.Update()
         self.clock.ShowFrameRate(self.window)
+
+
+'''
+O------------------------------------------------------------------------------O
+| CANVAS CLASS FOR WINDOW DRAWING AREA HANDLING                                |
+O------------------------------------------------------------------------------O
+'''
+
+class Canvas():
+
+    def __init__(self, size=(400, 300), range_x=(-1, 1)):
+        self.size = np.asarray(size).astype('int')
+        self.range_x_default = np.asarray(range_x).astype('float')
+
+        # Scaling settings
+        self.scale_rel_min = 0.5
+        self.scale_rel_max = 1.0e15
+        self.scale_abs_step = 0.02
+
+        # Default shift, scale and range variables
+        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
+        self.shift = self.shift_default.copy()
+        self.scale_abs = self.scale_abs_default
+        self.range_x, self.range_y = self.GetRangeXY()
+
+        # Initialize mouse position
+        self.mouse_pos = np.asarray([0, 0], dtype='float')
+        self.mouse_pos_previous = self.mouse_pos.copy()
+
+    def GetShiftAndScale(self, range_x, range_y):
+        # Compute the scaling factor
+        size_x = range_x[1] - range_x[0]
+        size_y = range_y[1] - range_y[0]
+        pix_size = size_x / self.size[0]
+        scale = 1.0 / pix_size
+        # Compute the shift
+        temp_shift_x = 0.5 * self.size[0]  # Offset by image center
+        temp_shift_x -= (range_x[0] + 0.5 * size_x) * scale  # Offset by x-extent
+        temp_shift_y = -0.5 * self.size[1]  # Offset by image center
+        temp_shift_y += (range_y[0] + 0.5 * size_y) * scale  # Offset by y-extent
+        shift = np.asarray([temp_shift_x, temp_shift_y], dtype='float')
+        # Return results
+        return shift, scale
+
+    def GetRangeXY(self):
+        TL_w = self.S2W(np.asarray([0.0, 0.0]))
+        BR_W = self.S2W(np.asarray(self.size))
+        range_x = np.asarray([TL_w[0], BR_W[0]])
+        range_y = np.asarray([BR_W[1], TL_w[1]])
+        return range_x, range_y
+
+    def ResetShiftAndScale(self):
+        self.shift = self.shift_default.copy()
+        self.scale_abs = self.scale_abs_default
+        self.range_x, self.range_y = self.GetRangeXY()
+
+    def Resize(self, size):
+        range_x_previous, range_y_previous = self.GetRangeXY()
+        self.size = np.asarray(size).astype('int')
+        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
+        self.shift, self.scale_abs = self.GetShiftAndScale(range_x_previous, range_y_previous)
+        self.range_x, self.range_y = self.GetRangeXY()
+
+    def UpdateShift(self):
+        delta_shift = self.mouse_pos - self.mouse_pos_previous
+        self.shift += delta_shift
+        self.range_x, self.range_y = self.GetRangeXY()
+
+    def ScaleIncrease(self, scale_step):
+        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
+        self.scale_abs *= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
+        if (self.scale_abs / self.scale_abs_default) > self.scale_rel_max:
+            self.scale_abs = self.scale_rel_max * self.scale_abs_default  # Max zoom
+        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
+        self.range_x, self.range_y = self.GetRangeXY()
+        # DEBUG
+        print(f'Window scale = {self.scale_abs / self.scale_abs_default:.2e}')
+
+    def ScaleDecrease(self, scale_step):
+        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
+        self.scale_abs /= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
+        if (self.scale_abs / self.scale_abs_default) < self.scale_rel_min:
+            self.scale_abs = self.scale_rel_min * self.scale_abs_default  # Min zoom
+        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
+        self.range_x, self.range_y = self.GetRangeXY()
+        # DEBUG
+        print(f'Window scale = {self.scale_abs / self.scale_abs_default:.2e}')
+
+    def SetMousePos(self, pos):
+        self.mouse_pos = np.asarray(pos).astype('float')
+
+    def UpdateMousePosPrevious(self):
+        self.mouse_pos_previous = self.mouse_pos.copy()
+
+
+    # O------------------------------------------------------------------------------O
+    # | SCREEN-TO-WORLD & WORLD-TO-SCREEN TRANSFORMATIONS                            |
+    # O------------------------------------------------------------------------------O
+
+    def S2W(self, points):
+        points = np.asarray(points)
+        output_points = np.empty(points.shape, dtype='float')
+        output_points[0] = (points[0] - self.shift[0]) / self.scale_abs
+        output_points[1] = (self.size[1] + self.shift[1] - points[1]) / self.scale_abs
+        return output_points
+
+    def W2S(self, points):
+        points = np.asarray(points)
+        output_points = np.empty(points.shape, dtype='float')
+        output_points[0] = self.shift[0] + points[0] * self.scale_abs
+        output_points[1] = self.size[1] + self.shift[1] - points[1] * self.scale_abs
+        return output_points
+
+    def S2GL(self, points):
+        output_points = np.asarray(points).astype('float')
+        output_points = (2.0 * (output_points.T / self.size) - 1.0).T
+        output_points[1] *= -1.0
+        return output_points
+
+    def GL2S(self, points):
+        output_points = np.asarray(points).astype('float')
+        output_points[1] *= -1.0
+        output_points = (0.5 * (output_points.T + 1.0) * self.size).T
+        return output_points
+
+    def W2GL(self, points):
+        return self.S2GL(self.W2S(points))
+
+    def GL2W(self, points):
+        return self.S2W(self.GL2S(points))
+
+
+'''
+O------------------------------------------------------------------------------O
+| GLFW CLOCK CLASS                                                             |
+O------------------------------------------------------------------------------O
+'''
+
+class ClockGLFW:
+    def __init__(self):
+        self.current_time = glfw.get_time()
+        self.previous_time = self.current_time
+        self.frame_time = 1.0
+        self.delta_time = 0.0
+        self.num_frames = 0
+
+    def Update(self):
+        self.num_frames += 1
+        self.current_time = glfw.get_time()
+        self.delta_time += self.current_time - self.previous_time
+        self.previous_time = self.current_time
+        if (self.delta_time >= 0.2):
+            self.frame_time = self.delta_time / self.num_frames
+            self.delta_time = 0.0
+            self.num_frames = 0
+
+    def ShowFrameRate(self, window):
+        glfw.set_window_title(window, f'Frame rate : {int(np.round(1.0 / self.frame_time))} FPS')
+
+    def ShowFrameTime(self, window):
+        glfw.set_window_title(window, f'Frame time : {self.frame_time:.6f} s')
 
 
 
