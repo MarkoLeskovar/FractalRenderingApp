@@ -29,7 +29,12 @@ DEFAULT_KEYMAP = {
     }
 
 # Default colormaps list
-DEFAULT_CMAPS = ['cet_l_tritanopic_krjcw1_r', 'jungle_r', 'apple_r']
+DEFAULT_CMAPS = [
+    'cet_l_tritanopic_krjcw1_r',
+    'cet_l_protanopic_deuteranopic_kbw_r',
+    'jungle_r',
+    'apple_r'
+    ]
 
 '''
 O------------------------------------------------------------------------------O
@@ -42,7 +47,7 @@ O------------------------------------------------------------------------------O
 # TODO : Refactor the code to separate render passes
 
 
-class FractalRenderingApp():
+class FractalRenderingApp:
 
     def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0), cmap_file=None, keymap_file=None, output_dir=None):
 
@@ -68,10 +73,10 @@ class FractalRenderingApp():
         if keymap_file is not None:
             self.keymap = self.load_keymap_file(keymap_file)
 
-        # Create output directory for screenshots
-        self.output_dir = output_dir
-        if self.output_dir is None:
-            self.output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
+        # Output directory for screenshots
+        self.output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
+        if output_dir is not None:
+            self.output_dir = output_dir
 
         # Create GLFW window and set the icon
         self.window_vsync = True

@@ -1,0 +1,61 @@
+# DIVERGING COLORMAPS
+# https://pratiman-91.github.io/colormaps/docs/Diverging
+
+# Cmocean
+balance
+balance_r
+
+# NCAR NCL
+BlueWhiteOrangeRed
+BlueWhiteOrangeRed_r
+NEO_div_vegetation_a
+NEO_div_vegetation_a_r
+NEO_div_vegetation_b
+NEO_div_vegetation_b_r
+NEO_div_vegetation_c
+NEO_div_vegetation_c_r
+vegetation_ClarkU
+vegetation_ClarkU_r
+
+# Scientific
+broc
+broc_r
+cork
+cork_r
+lisbon
+lisbon_r
+roma
+roma_r
+tofino
+tofino_r
+vik
+vik_r
+
+# SciViz
+br4div
+br4div_r
+bruce2
+bruce2_r
+d_blgr3
+d_blgr3_r
+d_seteq2
+d_seteq2_r
+div1_blue_orange
+div1_blue_orange_r
+div2_gray_gold
+div2_gray_gold_r
+div3_green_brown
+div3_green_brown_r
+div5_asym_Ob
+div5_asym_Ob_r
+hier2p
+hier2p_r
+tr4
+tr4_r
+w5m4
+w5m4_r
+w_ymiddle1
+w_ymiddle1_r
+
+# ColorCET
+# TODO : add the remaining colormaps
