@@ -46,7 +46,7 @@ def LoadColormapsFile(cmap_file):
     lines = []
     for line in lines_raw:
         line = line.split('#')[0]
-        line = line.strip('\n').strip(' ').lstrip(' ')
+        line = line.strip('\n').replace(' ', '')
         if len(line) != 0:
             lines.append(line)
     return lines
