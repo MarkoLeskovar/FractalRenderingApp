@@ -36,11 +36,16 @@ DEFAULT_CMAPS = [
     'apple_r'
     ]
 
+# Define default output directory
+DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
+
+
 '''
 O------------------------------------------------------------------------------O
 | MAIN OPENGL APP CLASS                                                        |
 O------------------------------------------------------------------------------O
 '''
+
 # TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add text rendering to display information on the screen
@@ -74,7 +79,7 @@ class FractalRenderingApp:
             self.keymap = self.load_keymap_file(keymap_file)
 
         # Output directory for screenshots
-        self.output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
+        self.output_dir = DEFAULT_OUTPUT_DIR
         if output_dir is not None:
             self.output_dir = output_dir
 
@@ -255,6 +260,8 @@ class FractalRenderingApp:
         # Reset shift and scale
         if (key == getattr(glfw, self.keymap['RESET_VIEW']) and action == glfw.PRESS):
             self.canvas.ResetShiftAndScale()
+            # Also reset the number of fractal iterations
+            self.num_iter = self.num_iter_min
 
         # Increase pixel scale
         if (key == getattr(glfw, self.keymap['PIX_SCALE_INCREASE']) and action == glfw.PRESS):
