@@ -46,6 +46,7 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
+# TODO : Add a "requirements.txt"
 # TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add text rendering to display information on the screen

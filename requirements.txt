@@ -1,0 +1,10 @@
+numba>=0.58.0
+numpy>=1.25.2
+glfw>=2.6.2
+PyOpenGL>=3.1.7
+PyOpenGL-accelerate>=3.1.7
+colormaps>=0.4.1
+tripy>=1.0.0
+Pillow>=10.1.0
+matplotlib>=3.8.0
+freetype-py>=2.4.0
