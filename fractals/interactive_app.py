@@ -46,7 +46,6 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Add a "requirements.txt"
 # TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add text rendering to display information on the screen
@@ -107,13 +106,13 @@ class FractalRenderingApp:
 
         # Read shader source code
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
-        base_vert_source = self.read_shader_source(os.path.join(shaders_path, 'base.vert'))
-        color_frag_source = self.read_shader_source(os.path.join(shaders_path, 'fractal_color.frag'))
-        mandelbrot_frag_source = self.read_shader_source(os.path.join(shaders_path, 'mandelbrot_set.frag'))
+        base_vert_source = read_shader_source(os.path.join(shaders_path, 'base.vert'))
+        color_frag_source = read_shader_source(os.path.join(shaders_path, 'fractal_color.frag'))
+        mandelbrot_frag_source = read_shader_source(os.path.join(shaders_path, 'mandelbrot_set.frag'))
 
         # Create shader programs
-        self.program_mandelbrot = self.create_shader_program(base_vert_source, mandelbrot_frag_source)
-        self.program_color = self.create_shader_program(base_vert_source, color_frag_source)
+        self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)
+        self.program_color = create_shader_program(base_vert_source, color_frag_source)
 
         # Get uniform locations
         self.uniform_locations_mandelbrot = self.get_uniform_locations(
@@ -433,27 +432,6 @@ class FractalRenderingApp:
         return window
 
 
-    def read_shader_source(self, path_to_shader):
-        with open(path_to_shader, 'r') as f:
-            shader_source = f.read()
-        return shader_source
-
-
-    def create_shader_program(self, vertex_src, fragment_src):
-        # Compile the shaders
-        vertex_shader = compileShader(vertex_src, GL_VERTEX_SHADER)
-        fragment_shader = compileShader(fragment_src, GL_FRAGMENT_SHADER)
-        # Create a program and link the shaders
-        program = glCreateProgram()
-        glAttachShader(program, vertex_shader)
-        glAttachShader(program, fragment_shader)
-        glLinkProgram(program)
-        # Delete the shaders and return the program
-        glDeleteShader(vertex_shader)
-        glDeleteShader(fragment_shader)
-        return program
-
-
     def create_textured_polygon_vertices(self, points_S, canvas):
         # Polygon triangulation
         triangles = np.asarray(tripy.earclip(points_S))
@@ -708,6 +686,28 @@ O------------------------------------------------------------------------------O
 | AUXILIARY FUNCTIONS                                                          |
 O------------------------------------------------------------------------------O
 '''
+
+
+def read_shader_source(path_to_shader):
+    with open(path_to_shader, 'r') as f:
+        shader_source = f.read()
+    return shader_source
+
+
+def create_shader_program(vertex_src, fragment_src):
+    # Compile the shaders
+    vertex_shader = compileShader(vertex_src, GL_VERTEX_SHADER)
+    fragment_shader = compileShader(fragment_src, GL_FRAGMENT_SHADER)
+    # Create a program and link the shaders
+    program = glCreateProgram()
+    glAttachShader(program, vertex_shader)
+    glAttachShader(program, fragment_shader)
+    glLinkProgram(program)
+    # Delete the shaders and return the program
+    glDeleteShader(vertex_shader)
+    glDeleteShader(fragment_shader)
+    return program
+
 
 def glfw_get_current_window_monitor(glfw_window):
     # Get all available monitors

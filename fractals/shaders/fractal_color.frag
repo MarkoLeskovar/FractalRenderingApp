@@ -13,7 +13,7 @@ uniform sampler2D iterations_texture;
 uniform int num_iter;
 
 // OUT - Final pixel color
-out vec3 fragment_color;
+out vec4 fragment_color;
 
 
 // FUNCTION - Apply colormap with linear interpolation
@@ -34,8 +34,7 @@ void main()
 
     // Fractional iteration count [0...1]
     float iterations_norm = iterations / float(num_iter);
-//    iterations_norm = 0.5 * sin(6.28 * (iterations_norm + 0.5)) + 0.5;
 
     // Apply colormap
-    fragment_color = ApplyColormap(iterations_norm);
+    fragment_color = vec4(ApplyColormap(iterations_norm), 1.0);
 }

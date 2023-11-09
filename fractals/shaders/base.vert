@@ -1,10 +1,10 @@
-#version 430
+#version 400 core
 
-// INPUT - VBO
+// IN - VBO
 layout (location=0) in vec2 vertex_position;
 layout (location=1) in vec2 vertex_texture_coordinate;
 
-// OUTPUT - Data for fragment shader
+// OUT - Data for fragment shader
 out vec2 fragment_texture_coordinate;
 
 

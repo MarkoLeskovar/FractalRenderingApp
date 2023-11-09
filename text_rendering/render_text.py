@@ -1,11 +1,11 @@
 import os
 import numpy as np
 import freetype
-import glm
 import glfw
 import glfw.GLFW as GLFW_VAR
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
+import numba
 
 # Add python modules
 from fractals.interactive_app import ClockGLFW
@@ -16,51 +16,44 @@ from fractals.interactive_app import ClockGLFW
 # TODO : Convert to "instanced" rendering as in (https://www.youtube.com/watch?v=S0PyZKX4lyI)
 # TODO : Check font size and how does that fit the DPI of the monitor etc...
 
-FONT_TPYE = r'C:\Windows\Fonts\arial.ttf'
+
+@numba.njit(cache=True)
+def ortho_mat(left, right, bottom, top, near=-1.0, far=1.0):
+    ortho_mat = np.zeros((4, 4), dtype='float')
+    ortho_mat[0, 0] = 2.0 / (right - left)
+    ortho_mat[1, 1] = 2.0 / (top - bottom)
+    ortho_mat[2, 2] = -2.0 / (far - near)
+    ortho_mat[0, 3] = -(right + left) / (right - left)
+    ortho_mat[1, 3] = -(top + bottom) / (top - bottom)
+    ortho_mat[2, 3] = -(far + near) / (far - near)
+    ortho_mat[3, 3] = 1.0
+    return ortho_mat
 
 
-class Character:
-    def __init__(self, texture_id, glyph):
-        self.texture_id = texture_id                               # ID handle of the glyph texture
-        self.size = (glyph.bitmap.width, glyph.bitmap.rows)     # Size of glyph
-        self.bearing = (glyph.bitmap_left, glyph.bitmap_top)    # Offset from the baseline to left/top of glyph
-        self.advance = glyph.advance.x                          # Offset to advance to next glyph
+
+FONT_TYPE = r'C:\Windows\Fonts\arial.ttf'
 
 
-VERTEX_SHADER = """
-        #version 400 core
-        layout (location = 0) in vec4 vertex; // <vec2 pos, vec2 tex>
-        out vec2 TexCoords;
 
-        uniform mat4 proj_mat;
-
-        void main()
-        {
-            gl_Position = proj_mat * vec4(vertex.xy, 0.0, 1.0);
-            TexCoords = vertex.zw;
-        }
-       """
-
-FRAGMENT_SHADER = """
-        #version 400 core
-        in vec2 TexCoords;
-        out vec4 color;
-
-        uniform sampler2D text;
-        uniform vec3 textColor;
-
-        void main()
-        {    
-            vec4 sampled = vec4(textColor, texture(text, TexCoords).r);
-            color = vec4(textColor, 1.0) * sampled;
-        }
-        """
 
 shader_program = None
 Characters = {}
 VBO = None
 VAO = None
 
+
+class Character:
+    def __init__(self, texture_id, glyph):
+        self.texture_id = texture_id                          # ID handle of the glyph texture
+        self.size = (glyph.bitmap.width, glyph.bitmap.rows)   # Size of glyph
+        self.bearing = (glyph.bitmap_left, glyph.bitmap_top)  # Offset from the baseline to left/top of glyph
+        self.advance = glyph.advance.x                        # Offset to advance to next glyph
+
+
+def read_shader_source(path_to_shader):
+    with open(path_to_shader, 'r') as f:
+        shader_source = f.read()
+    return shader_source
 
 
 def create_shader_program(vertex_src, fragment_src):
@@ -78,17 +71,24 @@ def create_shader_program(vertex_src, fragment_src):
     return program
 
 
-def render_text(window, text, x, y, scale, color):
+shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
+VERTEX_SHADER_SOURCE = read_shader_source(os.path.join(shaders_path, 'render_text.vert'))
+FRAGMENT_SHADER_SOURCE = read_shader_source(os.path.join(shaders_path, 'render_text.frag'))
+
+
+
+def render_text(text, x, y, scale, color):
     global shader_program
     global Characters
     global VBO
     global VAO
 
-    face = freetype.Face(FONT_TPYE)
+    face = freetype.Face(FONT_TYPE)
     face.set_char_size(48 * 64)
 
     # Set color
-    glUniform3f(glGetUniformLocation(shader_program, "textColor"), color[0] / 255, color[1] / 255, color[2] / 255)
+    color_loc = glGetUniformLocation(shader_program, "textColor")
+    glUniform3f(color_loc, color[0] / 255, color[1] / 255, color[2] / 255)
 
     glActiveTexture(GL_TEXTURE0)
 
@@ -131,13 +131,11 @@ def render_text(window, text, x, y, scale, color):
     glBindVertexArray(0)
     glBindTexture(GL_TEXTURE_2D, 0)
 
-    glfw.swap_buffers(window)
-    glfw.poll_events()
 
 
 def main():
     global VERTEXT_SHADER
-    global FRAGMENT_SHADER
+    global FRAGMENT_SHADER_SOURCE
     global shader_program
     global Characters
     global VBO
@@ -163,24 +161,22 @@ def main():
     # | INITIALIZE TEXT RENDERER                                                     |
     # O------------------------------------------------------------------------------O
 
-    # Compile the shaders
-
     # Create a shader program
-    shader_program = create_shader_program(VERTEX_SHADER, FRAGMENT_SHADER)
+    shader_program = create_shader_program(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE)
     glUseProgram(shader_program)
 
     # Define a projection matrix
     proj_mat_location = glGetUniformLocation(shader_program, "proj_mat")
-    proj_mat = np.array(glm.ortho(0, window_size[0], 0, window_size[1])).T
+    proj_mat = ortho_mat(0, window_size[0], 0, window_size[1]).T
 
     # Send projection matrix to the GPU
-    glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, proj_mat)
+    glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, proj_mat.astype('float32'))
 
     # Disable byte-alignment restriction
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
     # Load freetype characters
-    face = freetype.Face(FONT_TPYE)
+    face = freetype.Face(FONT_TYPE)
     face.set_pixel_sizes(0, 50)
 
     # Load the first 128 characters of the ASCII set
@@ -227,6 +223,7 @@ def main():
     glBindBuffer(GL_ARRAY_BUFFER, 0)
     glBindVertexArray(0)
 
+    # Initialize a clock
     clock = ClockGLFW()
 
     # Main render loop
@@ -242,9 +239,11 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render text
-        render_text(window,
-                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-                    20, 50, 1.0, (255, 100, 100))
+        render_text('Some random text', 20, 50, 1.0, (255, 100, 100))
+        render_text('Some more random text', 120, 150, 1.0, (100, 255, 100))
+
+        # Swap buffers
+        glfw.swap_buffers(window)
 
     glfw.terminate()
 
