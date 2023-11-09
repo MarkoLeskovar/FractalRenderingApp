@@ -4,15 +4,12 @@ import freetype
 import glfw
 import glfw.GLFW as GLFW_VAR
 from OpenGL.GL import *
-from OpenGL.GL.shaders import compileShader
 import numba
 
 # Add python modules
-from fractals.interactive_app import ClockGLFW
+from fractals.interactive_app import ClockGLFW, read_shader_source, create_shader_program, get_uniform_locations
 
 
-# TODO : Reformat this file as in LearnOpenGL tutorial (https://learnopengl.com/In-Practice/Text-Rendering)
-# TODO : Add FPS counter from the interactive_app.py
 # TODO : Convert to "instanced" rendering as in (https://www.youtube.com/watch?v=S0PyZKX4lyI)
 # TODO : Check font size and how does that fit the DPI of the monitor etc...
 
@@ -30,19 +27,8 @@ def ortho_mat(left, right, bottom, top, near=-1.0, far=1.0):
     return ortho_mat
 
 
+class CharacterSlot:
 
-FONT_TYPE = r'C:\Windows\Fonts\arial.ttf'
-
-
-
-
-shader_program = None
-Characters = {}
-VBO = None
-VAO = None
-
-
-class Character:
     def __init__(self, texture_id, glyph):
         self.texture_id = texture_id                          # ID handle of the glyph texture
         self.size = (glyph.bitmap.width, glyph.bitmap.rows)   # Size of glyph
@@ -50,100 +36,137 @@ class Character:
         self.advance = glyph.advance.x                        # Offset to advance to next glyph
 
 
-def read_shader_source(path_to_shader):
-    with open(path_to_shader, 'r') as f:
-        shader_source = f.read()
-    return shader_source
+# TODO : Add a "terminate" function that deletes all buffers
+
+class TextRenderer:
+
+    def __init__(self):
+
+        # Select the font
+        self.font_type = r'C:\Windows\Fonts\arial.ttf'
+
+        # Read shader source code
+        shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
+        vertex_shader_source = read_shader_source(os.path.join(shaders_path, 'render_text.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(shaders_path, 'render_text.frag'))
+
+        # Create a shader program
+        self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
+        glUseProgram(self.shader_program)
+
+        # Get uniform locations
+        self.uniform_locations = get_uniform_locations(
+            self.shader_program, ['text_color', 'proj_mat'])
+
+        # TODO : Move this outside
+        # Define a projection matrix
+        proj_mat = ortho_mat(0, 1200, 0, 800).T
+
+        # Send projection matrix to the GPU
+        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, proj_mat.astype('float32'))
+
+        # TODO : Move this to a seperate function
+
+        # Load freetype characters
+        face = freetype.Face(self.font_type)
+        face.set_pixel_sizes(0, 100)
+
+        # Disable byte-alignment restriction
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+
+        # Load the first 128 characters of the ASCII set
+        self.characters = {}
+        for i in range(0, 128):
+
+            # Load the character glyph
+            face.load_char(chr(i), freetype.FT_LOAD_RENDER)
+
+            # Generate a character texture
+            texture = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, texture)
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                face.glyph.bitmap.width,
+                face.glyph.bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                face.glyph.bitmap.buffer)
+
+            # Set texture options
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+            # Store character for later use
+            self.characters[chr(i)] = CharacterSlot(texture, face.glyph)
 
 
-def create_shader_program(vertex_src, fragment_src):
-    # Compile the shaders
-    vertex_shader = compileShader(vertex_src, GL_VERTEX_SHADER)
-    fragment_shader = compileShader(fragment_src, GL_FRAGMENT_SHADER)
-    # Create a program and link the shaders
-    program = glCreateProgram()
-    glAttachShader(program, vertex_shader)
-    glAttachShader(program, fragment_shader)
-    glLinkProgram(program)
-    # Delete the shaders and return the program
-    glDeleteShader(vertex_shader)
-    glDeleteShader(fragment_shader)
-    return program
+        # Configure VAO/VBO for texture quads
+        self.texture_vao = glGenVertexArrays(1)
+        glBindVertexArray(self.texture_vao)
+
+        self.texture_vbo = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, self.texture_vbo)
+        glBufferData(GL_ARRAY_BUFFER, 4 * 4 * 4, None, GL_DYNAMIC_DRAW)
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(0))
+        glEnableVertexAttribArray(1)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
 
 
-shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
-VERTEX_SHADER_SOURCE = read_shader_source(os.path.join(shaders_path, 'render_text.vert'))
-FRAGMENT_SHADER_SOURCE = read_shader_source(os.path.join(shaders_path, 'render_text.frag'))
+    def render(self, text, x, y, scale, color):
+        text_color = (np.asarray(color) / 255).astype('float32')
+
+        # Change this to vec3 directly
+        glUniform3fv(self.uniform_locations['text_color'], 1, text_color)
+
+        # Activate the texture
+        glActiveTexture(GL_TEXTURE0)
+
+        # Enable blending
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        # Bind vertex array
+        glBindVertexArray(self.texture_vao)
+
+        # Loop over all characters in the text
+        for c in text:
+
+            # Get current character
+            ch = self.characters[c]
+
+            # Get character dimensions
+            x_pos = x + ch.bearing[0] * scale
+            y_pos = y - (ch.size[1] - ch.bearing[1]) * scale
+            w = ch.size[0] * scale
+            h = ch.size[1] * scale
+
+            # Get VBO for each character
+            vertices = np.asarray([
+                x_pos, y_pos,         0, 1,
+                x_pos,     y_pos + h, 0, 0,
+                x_pos + w, y_pos,     1, 1,
+                x_pos + w, y_pos + h, 1, 0
+            ], dtype='float32')
+
+            # Render glyph texture over quad
+            glBindTexture(GL_TEXTURE_2D, ch.texture_id)
+            # Update content of VBO memory
+            glBindBuffer(GL_ARRAY_BUFFER, self.texture_vbo)
+            glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
+            # Render quad
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+            # Advance cursors for next glyph (note that advance is number of 1/64 pixels)
+            x += (ch.advance >> 6) * scale  # Bit-shift by 6 to get value in pixels (2^6 = 64)
 
 
-
-def render_text(text, x, y, scale, color):
-    global shader_program
-    global Characters
-    global VBO
-    global VAO
-
-    face = freetype.Face(FONT_TYPE)
-    face.set_char_size(48 * 64)
-
-    # Set color
-    color_loc = glGetUniformLocation(shader_program, "textColor")
-    glUniform3f(color_loc, color[0] / 255, color[1] / 255, color[2] / 255)
-
-    glActiveTexture(GL_TEXTURE0)
-
-    # Enable blending
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-
-    glBindVertexArray(VAO)
-    for c in text:
-
-        # Get current character
-        ch = Characters[c]
-
-        # Get character dimensions
-        x_pos = x + ch.bearing[0] * scale
-        y_pos = y - (ch.size[1] - ch.bearing[1]) * scale
-        w = ch.size[0] * scale
-        h = ch.size[1] * scale
-
-        # Get VBO for each character
-        vertices = np.asarray([
-            x_pos,     y_pos + h, 0, 0,
-            x_pos,     y_pos,     0, 1,
-            x_pos + w, y_pos,     1, 1,
-            x_pos,     y_pos + h, 0, 0,
-            x_pos + w, y_pos,     1, 1,
-            x_pos + w, y_pos + h, 1, 0], dtype='float32')
-
-        # Render glyph texture over quad
-        glBindTexture(GL_TEXTURE_2D, ch.texture_id)
-        # Update content of VBO memory
-        glBindBuffer(GL_ARRAY_BUFFER, VBO)
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.nbytes, vertices)
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-        # Render quad
-        glDrawArrays(GL_TRIANGLES, 0, 6)
-        # Advance cursors for next glyph (note that advance is number of 1/64 pixels)
-        x += (ch.advance >> 6) * scale  # Bitshift by 6 to get value in pixels (2^6 = 64)
-
-    glBindVertexArray(0)
-    glBindTexture(GL_TEXTURE_2D, 0)
-
-
-
+# Define main function
 def main():
-    global VERTEXT_SHADER
-    global FRAGMENT_SHADER_SOURCE
-    global shader_program
-    global Characters
-    global VBO
-    global VAO
-
-    # O------------------------------------------------------------------------------O
-    # | CREATE GLFW WINDOW                                                           |
-    # O------------------------------------------------------------------------------O
 
     # Define window size
     window_size = (1200, 800)
@@ -157,74 +180,11 @@ def main():
     glfw.make_context_current(window)
     glfw.swap_interval(0)
 
-    # O------------------------------------------------------------------------------O
-    # | INITIALIZE TEXT RENDERER                                                     |
-    # O------------------------------------------------------------------------------O
-
-    # Create a shader program
-    shader_program = create_shader_program(VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE)
-    glUseProgram(shader_program)
-
-    # Define a projection matrix
-    proj_mat_location = glGetUniformLocation(shader_program, "proj_mat")
-    proj_mat = ortho_mat(0, window_size[0], 0, window_size[1]).T
-
-    # Send projection matrix to the GPU
-    glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, proj_mat.astype('float32'))
-
-    # Disable byte-alignment restriction
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-
-    # Load freetype characters
-    face = freetype.Face(FONT_TYPE)
-    face.set_pixel_sizes(0, 50)
-
-    # Load the first 128 characters of the ASCII set
-    for i in range(0, 128):
-
-        # Load the character glyph
-        face.load_char(chr(i), freetype.FT_LOAD_RENDER)
-
-        # Generate a character texture
-        texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, texture)
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RED,
-            face.glyph.bitmap.width,
-            face.glyph.bitmap.rows,
-            0,
-            GL_RED,
-            GL_UNSIGNED_BYTE,
-            face.glyph.bitmap.buffer)
-
-        # Set texture options
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-        # Store character for later use
-        Characters[chr(i)] = Character(texture, face.glyph)
-
-    glBindTexture(GL_TEXTURE_2D, 0)
-
-
-    # Configure VAO/VBO for texture quads
-    VAO = glGenVertexArrays(1)
-    glBindVertexArray(VAO)
-
-    VBO = glGenBuffers(1)
-    glBindBuffer(GL_ARRAY_BUFFER, VBO)
-    glBufferData(GL_ARRAY_BUFFER, 6 * 4 * 4, None, GL_DYNAMIC_DRAW)
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 16, None)
-    glBindBuffer(GL_ARRAY_BUFFER, 0)
-    glBindVertexArray(0)
-
     # Initialize a clock
     clock = ClockGLFW()
+
+    # Initialize a text rendered
+    text = TextRenderer()
 
     # Main render loop
     while not glfw.window_should_close(window):
@@ -239,14 +199,16 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render text
-        render_text('Some random text', 20, 50, 1.0, (255, 100, 100))
-        render_text('Some more random text', 120, 150, 1.0, (100, 255, 100))
+        text.render('Some random text', 0, 0, 1.0, (255, 100, 100))
+        text.render('Some more random text', 120, 150, 1.0, (100, 255, 100))
 
         # Swap buffers
         glfw.swap_buffers(window)
 
+    # Terminate the app
     glfw.terminate()
 
 
+# Run main function
 if __name__ == '__main__':
     main()

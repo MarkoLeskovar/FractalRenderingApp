@@ -115,9 +115,9 @@ class FractalRenderingApp:
         self.program_color = create_shader_program(base_vert_source, color_frag_source)
 
         # Get uniform locations
-        self.uniform_locations_mandelbrot = self.get_uniform_locations(
+        self.uniform_locations_mandelbrot = get_uniform_locations(
             self.program_mandelbrot, ['pix_size', 'range_x', 'range_y', 'num_iter'])
-        self.uniform_locations_color = self.get_uniform_locations(
+        self.uniform_locations_color = get_uniform_locations(
             self.program_color, ['num_iter'])
 
         # Create framebuffers
@@ -443,13 +443,6 @@ class FractalRenderingApp:
         return np.hstack((triangles_gl, triangles_texture)).astype('float32')
 
 
-    def get_uniform_locations(self, shader_program, uniform_names):
-        uniform_locations = {}
-        for uniform_name in uniform_names:
-            uniform_locations[uniform_name] = glGetUniformLocation(shader_program, uniform_name)
-        return uniform_locations
-
-
     def create_framebuffer(self, size, gl_internalformat, gl_format, gl_type):
         # Create a frame-buffer object
         framebuffer = glGenFramebuffers(1)
@@ -708,6 +701,12 @@ def create_shader_program(vertex_src, fragment_src):
     glDeleteShader(fragment_shader)
     return program
 
+
+def get_uniform_locations(shader_program, uniform_names):
+    uniform_locations = {}
+    for uniform_name in uniform_names:
+        uniform_locations[uniform_name] = glGetUniformLocation(shader_program, uniform_name)
+    return uniform_locations
 
 def glfw_get_current_window_monitor(glfw_window):
     # Get all available monitors
