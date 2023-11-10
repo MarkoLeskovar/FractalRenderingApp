@@ -680,7 +680,6 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-
 def read_shader_source(path_to_shader):
     with open(path_to_shader, 'r') as f:
         shader_source = f.read()
@@ -708,6 +707,7 @@ def get_uniform_locations(shader_program, uniform_names):
         uniform_locations[uniform_name] = glGetUniformLocation(shader_program, uniform_name)
     return uniform_locations
 
+
 def glfw_get_current_window_monitor(glfw_window):
     # Get all available monitors
     monitors = list(glfw.get_monitors())
@@ -733,5 +733,3 @@ def glfw_get_current_window_monitor(glfw_window):
     # Return monitor with the highest overlap
     max_id = np.argmax(overlap_area)
     return monitors[max_id]
-
-
