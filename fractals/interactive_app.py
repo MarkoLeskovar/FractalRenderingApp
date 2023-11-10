@@ -106,9 +106,9 @@ class FractalRenderingApp:
 
         # Read shader source code
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
-        base_vert_source = read_shader_source(os.path.join(shaders_path, 'base.vert'))
+        base_vert_source = read_shader_source(os.path.join(shaders_path, 'fractal_base.vert'))
         color_frag_source = read_shader_source(os.path.join(shaders_path, 'fractal_color.frag'))
-        mandelbrot_frag_source = read_shader_source(os.path.join(shaders_path, 'mandelbrot_set.frag'))
+        mandelbrot_frag_source = read_shader_source(os.path.join(shaders_path, 'fractal_mandelbrot.frag'))
 
         # Create shader programs
         self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)

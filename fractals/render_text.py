@@ -31,8 +31,8 @@ class TextRenderer:
 
         # Read shader source code
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
-        vertex_shader_source = read_shader_source(os.path.join(shaders_path, 'render_text.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(shaders_path, 'render_text.frag'))
+        vertex_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.frag'))
 
         # Create a shader program
         self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
