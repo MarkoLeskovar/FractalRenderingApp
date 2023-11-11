@@ -7,21 +7,14 @@ import glfw
 import glfw.GLFW as GLFW_VAR
 from OpenGL.GL import *
 
-import matplotlib.pyplot as plt
-
 # Add python modules
 from fractals.interactive_app import ClockGLFW, read_shader_source, create_shader_program, get_uniform_locations
 
 
-# TODO : Convert to "instanced" rendering as in (https://www.youtube.com/watch?v=S0PyZKX4lyI)
-# TODO : Check font size and how does that fit the DPI of the monitor etc...
-
-ARRAY_LIMIT = 128
-
 class Character:
 
-    def __init__(self, texture_id, glyph):
-        self.texture_id = texture_id                          # ID handle of the glyph texture
+    def __init__(self, ascii_id, glyph):
+        self.ascii_id = ascii_id                              # ID of the ASCII character
         self.size = (glyph.bitmap.width, glyph.bitmap.rows)   # Size of glyph
         self.bearing = (glyph.bitmap_left, glyph.bitmap_top)  # Offset from the baseline to left/top of glyph
         self.advance = glyph.advance.x                        # Offset to advance to next glyph
@@ -32,21 +25,28 @@ class TextRenderer:
     def __init__(self, framebuffer_size):
         self.framebuffer_size = np.asarray(framebuffer_size).astype('int')
 
+        # Get max uniform block size
+        max_uniform_block_size = glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE)
+        self.max_instances = int(max_uniform_block_size / (4 * 4 * 4))
+
         # Read shader source code
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
         vertex_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.vert'))
         fragment_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.frag'))
+
+        # Dynamically modify the shader source code
+        vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
+        fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
 
         # Create a shader program
         self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
         glUseProgram(self.shader_program)
 
         # Get uniform locations
-        self.uniform_locations = get_uniform_locations(
-            self.shader_program, ['text_color', 'proj_mat', 'trans_mat', 'character_ids'])
+        self.uniform_locations = get_uniform_locations( self.shader_program, ['color', 'proj_mat'])
 
         # Define a projection matrix
-        proj_mat = np.array(glm.ortho(0, self.framebuffer_size[0], 0, self.framebuffer_size[1])).T
+        proj_mat = np.array(glm.ortho(0, self.framebuffer_size[0], 0, self.framebuffer_size[1], -1, 1)).T
 
         # Send projection matrix to the GPU
         glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, proj_mat)
@@ -75,13 +75,32 @@ class TextRenderer:
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
 
         # Setup texture array
-        self.trans_mat = np.zeros(shape=(ARRAY_LIMIT, 4, 4), dtype='float32')
-        self.character_index = np.zeros(shape=ARRAY_LIMIT, dtype='int32')
+        self.trans_mat_array = np.zeros(shape=(self.max_instances, 4, 4), dtype='float32')
+        self.char_id_array = np.zeros(shape=(self.max_instances, 4), dtype='int32')
+
+        # Set transforms buffer
+        self.trans_mat_buffer = glGenBuffers(1)
+        glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
+        glBufferData(GL_UNIFORM_BUFFER, self.trans_mat_array.nbytes, None, GL_DYNAMIC_DRAW)
+        # Bind the buffer
+        trans_mat_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'trans_mat_buffer')
+        glUniformBlockBinding(self.shader_program, trans_mat_buffer_block_index, 0)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.trans_mat_buffer)
+
+        # Set character id buffer
+        self.char_id_buffer = glGenBuffers(1)
+        glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
+        glBufferData(GL_UNIFORM_BUFFER, self.char_id_array.nbytes, None, GL_DYNAMIC_DRAW)
+        # Bind the buffer
+        character_id_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'char_id_buffer')
+        glUniformBlockBinding(self.shader_program, character_id_buffer_block_index, 1)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.char_id_buffer)
+
 
 
     def terminate(self):
         # Delete OpenGL buffers
-        glDeleteBuffers(1, [self.texture_vbo])
+        glDeleteBuffers(3, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer])
         glDeleteVertexArrays(1, [self.texture_vao])
         glDeleteTextures(1, [self.texture_array])
         glDeleteProgram(self.shader_program)
@@ -113,7 +132,7 @@ class TextRenderer:
 
         # Load ASCII characters
         self.characters = {}
-        for i in range(0, num_ASCII_char):
+        for i in range(num_ASCII_char):
             # Load the character glyph
             face.load_char(chr(i), freetype.FT_LOAD_RENDER)
             # Get face data
@@ -133,7 +152,7 @@ class TextRenderer:
 
         # Activate text rendering
         glUseProgram(self.shader_program)
-        glUniform3fv(self.uniform_locations['text_color'], 1, text_color)
+        glUniform3fv(self.uniform_locations['color'], 1, text_color)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.texture_array)
         glBindVertexArray(self.texture_vao)
@@ -143,22 +162,24 @@ class TextRenderer:
         x_start = x
 
         # Loop over all characters in the text
-        working_index = 0
+        index = 0
         for c in text:
 
-            # Get current character
+            # Get the current character
             ch = self.characters[c]
 
             # Check if we have a new line character
             if (c == '\n'):
                 y -= self.font_size * scale
                 x = x_start
+
             # Check if we have an empty space or a tab
             elif (c == ' ') or (c == '\t'):
                 x += (ch.advance >> 6) * scale
+
             # Render the character
             else:
-                # Get character dimensions
+                # Get dimensions
                 x_pos = x + ch.bearing[0] * scale
                 y_pos = y - (self.font_size - ch.bearing[1]) * scale
 
@@ -167,27 +188,39 @@ class TextRenderer:
                                   glm.scale(glm.mat4(1.0), glm.vec3(self.font_size * scale, self.font_size * scale, 0.0)))
 
                 # Setup a texture index
-                self.trans_mat[working_index] = np.array(temp_trans_mat).T
-                self.character_index[working_index] = ch.texture_id
+                self.trans_mat_array[index, :, :] = np.array(temp_trans_mat).T
+                self.char_id_array[index, 0] = ch.ascii_id
 
                 # Advance cursors for next glyph
                 x += (ch.advance >> 6) * scale
 
                 # Update the working index
-                working_index += 1
+                index += 1
 
                 # Draw call
-                if (working_index == ARRAY_LIMIT):
-                    self.draw_arrays(working_index)
-                    working_index = 0
+                if (index == self.max_instances):
+                    self.render(index)
+                    index = 0
 
         # Final draw call
-        self.draw_arrays(working_index)
+        self.render(index)
 
 
-    def draw_arrays(self, num_instances):
-        glUniformMatrix4fv(self.uniform_locations['trans_mat'], num_instances, GL_FALSE, self.trans_mat)
-        glUniform1iv(self.uniform_locations['character_ids'], num_instances, self.character_index)
+    def render(self, num_instances):
+
+        # Update transformation buffer
+        temp_num_bytes = num_instances * 64  # 64 -> number of bytes of mat4
+        temp_data = self.trans_mat_array[0: num_instances, :, :]
+        glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
+
+        # Update character ID buffer
+        temp_num_bytes = num_instances * 16  # 4 -> number of bytes of int
+        temp_data = self.char_id_array[0: num_instances, :]
+        glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
+
+        # Draw instanced characters
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, num_instances)
 
 
@@ -204,7 +237,7 @@ def main():
     glfw.window_hint(GLFW_VAR.GLFW_DOUBLEBUFFER, GLFW_VAR.GLFW_TRUE)
     window = glfw.create_window(window_size[0], window_size[1], 'Text rendering', None, None)
     glfw.make_context_current(window)
-    glfw.swap_interval(1)
+    glfw.swap_interval(0)
 
     # Initialize a clock
     clock = ClockGLFW()
@@ -212,6 +245,15 @@ def main():
     # Initialize a text rendered
     text_renderer = TextRenderer(window_size)
     text_renderer.set_font(r'C:\Windows\Fonts\arial.ttf', size=50)
+
+    # Define some text
+    test_text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit,\n' \
+                'sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n' \
+                'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris\n' \
+                'nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in\n' \
+                'reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla\n' \
+                'pariatur. Excepteur sint occaecat cupidatat non proident, sunt in\n' \
+                'culpa qui officia deserunt mollit anim id est laborum.'
 
     # Main render loop
     while not glfw.window_should_close(window):
@@ -226,14 +268,8 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render text
-        text_renderer.add_text('Lorem ipsum dolor sit amet, consectetur adipiscing elit,\n'
-                               'sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n'
-                               'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris\n'
-                               'nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in\n'
-                               'reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla\n'
-                               'pariatur. Excepteur sint occaecat cupidatat non proident, sunt in\n'
-                               'culpa qui officia deserunt mollit anim id est laborum.',
-                               10, 950, 1.0, (255, 0, 0))
+        text_renderer.add_text(test_text, 10, 950, 1.0, (255, 0, 0))
+        text_renderer.add_text(test_text, 10, 350, 1.0, (0, 255, 0))
 
         # Swap buffers
         glfw.swap_buffers(window)

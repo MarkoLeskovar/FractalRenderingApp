@@ -1,11 +1,16 @@
 #version 400 core
+#define NUM_INSTANCES INSERT_NUM_INSTANCES
 
 // IN - VBO
-layout (location=0) in vec2 vertex_position;
+layout(location=0) in vec2 vertex_position;
 
 // IN - Uniforms
-uniform mat4 trans_mat[128];
 uniform mat4 proj_mat;
+
+// IN - Buffers
+layout(std140) uniform trans_mat_buffer {
+    mat4[NUM_INSTANCES] trans_mat;
+};
 
 // OUT - Data for fragment shader
 out VS_OUT{

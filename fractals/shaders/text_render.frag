@@ -1,4 +1,14 @@
 #version 400 core
+#define NUM_INSTANCES INSERT_NUM_INSTANCES
+
+// IN - Uniforms
+uniform sampler2DArray characters;
+uniform vec3 color;
+
+// IN - Buffers
+layout(std140) uniform char_id_buffer {
+    int[NUM_INSTANCES] char_id;
+};
 
 // IN - From vertex shader
 in VS_OUT{
@@ -6,17 +16,16 @@ in VS_OUT{
     flat int index;
 } fs_in;
 
-// IN - Uniforms
-uniform sampler2DArray characters;
-uniform int character_ids[128];
-uniform vec3 text_color;
-
 // OUT - Final pixel color
 out vec4 fragment_color;
 
+// FUNCTION - Main function
 void main()
 {
-    vec3 character_coordinate = vec3(fs_in.texture_coordinate, character_ids[fs_in.index]);
+    // Get character coordinate
+    vec3 character_coordinate = vec3(fs_in.texture_coordinate, char_id[fs_in.index]);
+
+    // Sample the texture and get final color
     float sampled_value = texture(characters, character_coordinate).r;
-    fragment_color = vec4(text_color, sampled_value);
+    fragment_color = vec4(color, sampled_value);
 }
