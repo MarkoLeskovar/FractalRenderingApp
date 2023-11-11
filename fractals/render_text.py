@@ -24,8 +24,7 @@ class CharacterSlot:
 
 class TextRenderer:
 
-    def __init__(self, framebuffer_size):
-        self.framebuffer_size = np.asarray(framebuffer_size).astype('int')
+    def __init__(self):
 
         # Get max uniform block size
         self.max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / (4 * 4 * 4))
@@ -34,38 +33,35 @@ class TextRenderer:
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
         vertex_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.vert'))
         fragment_shader_source = read_shader_source(os.path.join(shaders_path, 'text_render.frag'))
-
         # Dynamically modify the shader source code
         vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
         fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
-
         # Create a shader program
         self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
         glUseProgram(self.shader_program)
 
-        # Get uniform locations
-        self.uniform_locations = get_uniform_locations( self.shader_program, ['proj_mat', 'color'])
-
-        # Define a projection matrix
-        proj_mat = np.array(glm.ortho(0, self.framebuffer_size[0], 0, self.framebuffer_size[1], -1, 1)).T
-
-        # Send projection matrix to the GPU
-        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, proj_mat)
-
-        # Enable blending
+        # Enable text blending
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        # Setup a generic rectangle
-        vertex_data = np.asarray([
-            0, 1,
-            0, 0,
-            1, 1,
-            1, 0
-        ]).astype('float32')
+        # Get uniform locations
+        self.uniform_locations = get_uniform_locations( self.shader_program, ['proj_mat'])
+
+        # Set buffers
+        self._set_vertex_buffer()
+        self._set_trans_mat_buffer()
+        self._set_char_id_buffer()
+        self._set_color_buffer()
+
+    def SetWindowSize(self, size):
+        self.window_size = np.asarray(size).astype('int')
+        self.proj_mat = np.array(glm.ortho(0, self.window_size[0], 0, self.window_size[1], -1, 1)).T
 
 
-        # Textured squad VAO and VBO
+    def _set_vertex_buffer(self):
+        # Initialize the data
+        vertex_data = np.asarray([0, 1, 0, 0, 1, 1, 1, 0]).astype('float32')
+        # Set textured quad VAO and VBO
         self.texture_vao = glGenVertexArrays(1)
         glBindVertexArray(self.texture_vao)
         self.texture_vbo = glGenBuffers(1)
@@ -75,10 +71,10 @@ class TextRenderer:
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
 
-        # Initialize uniform buffer data
-        self.trans_mat_array = np.zeros(shape=(self.max_instances, 4, 4), dtype='float32')
-        self.char_id_array = np.zeros(shape=(self.max_instances, 4), dtype='int32')
 
+    def _set_trans_mat_buffer(self):
+        # Initialize the data
+        self.trans_mat_array = np.zeros(shape=(self.max_instances, 4, 4), dtype='float32')
         # Set transformation matrices buffer
         self.trans_mat_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
@@ -88,26 +84,42 @@ class TextRenderer:
         glUniformBlockBinding(self.shader_program, trans_mat_buffer_block_index, 0)
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.trans_mat_buffer)
 
+
+    def _set_char_id_buffer(self):
+        # Initialize the data
+        self.char_id_array = np.zeros(shape=(self.max_instances, 4), dtype='int32')
         # Set character ids buffer
         self.char_id_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
         glBufferData(GL_UNIFORM_BUFFER, self.char_id_array.nbytes, None, GL_DYNAMIC_DRAW)
         # Bind the buffer
-        character_id_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'char_id_buffer')
-        glUniformBlockBinding(self.shader_program, character_id_buffer_block_index, 1)
+        char_id_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'char_id_buffer')
+        glUniformBlockBinding(self.shader_program, char_id_buffer_block_index, 1)
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.char_id_buffer)
 
 
+    def _set_color_buffer(self):
+        # Initialize the data
+        self.color_array = np.zeros(shape=(self.max_instances, 4), dtype='float32')
+        # Set color buffer
+        self.color_buffer = glGenBuffers(1)
+        glBindBuffer(GL_UNIFORM_BUFFER, self.color_buffer)
+        glBufferData(GL_UNIFORM_BUFFER, self.color_array.nbytes, None, GL_DYNAMIC_DRAW)
+        # Bind the buffer
+        color_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'color_buffer')
+        glUniformBlockBinding(self.shader_program, color_buffer_block_index, 2)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 2, self.color_buffer)
 
-    def terminate(self):
+
+    def Terminate(self):
         # Delete OpenGL buffers
-        glDeleteBuffers(3, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer])
+        glDeleteBuffers(4, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer, self.color_buffer])
         glDeleteVertexArrays(1, [self.texture_vao])
         glDeleteTextures(1, [self.texture_array])
         glDeleteProgram(self.shader_program)
 
 
-    def set_font(self, font_type, font_size):
+    def SetFont(self, font_type, font_size):
         self.font_size = int(font_size)
 
         # Number of ASCII characters
@@ -147,14 +159,13 @@ class TextRenderer:
             self.characters[chr(i)] = CharacterSlot(i, face.glyph)
 
 
-    def add_text(self, text, x, y, scale, color):
+    def AddText(self, text, x, y, scale, color):
 
         # Rescale the color to [0, 1] range
         text_color = (np.asarray(color) / 255.0).astype('float32')
 
         # Activate text rendering
         glUseProgram(self.shader_program)
-        glUniform3fv(self.uniform_locations['color'], 1, text_color)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.texture_array)
         glBindVertexArray(self.texture_vao)
@@ -164,7 +175,7 @@ class TextRenderer:
         x_start = x
 
         # Flip y-axis for top-left origin
-        y = self.framebuffer_size[1] - self.font_size - y
+        y = self.window_size[1] - y - self.font_size * scale
 
         # Loop over all characters in the text
         index = 0
@@ -192,9 +203,10 @@ class TextRenderer:
                 temp_trans_mat = (glm.translate(glm.mat4(1.0), glm.vec3(x_pos, y_pos, 0.0)) *
                                   glm.scale(glm.mat4(1.0), glm.vec3(self.font_size * scale, self.font_size * scale, 0.0)))
 
-                # Setup a texture index
+                # Set up the texture data
                 self.trans_mat_array[index, :, :] = np.array(temp_trans_mat).T
                 self.char_id_array[index, 0] = ch.ascii_id
+                self.color_array[index, 0:3] = text_color
 
                 # Advance cursors for next glyph
                 x += (ch.advance >> 6) * scale
@@ -213,6 +225,9 @@ class TextRenderer:
 
     def render(self, num_instances):
 
+        # Send uniforms to the GPu
+        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, self.proj_mat)
+
         # Update transformation buffer
         temp_num_bytes = num_instances * 64  # 64 -> number of bytes of mat4
         temp_data = self.trans_mat_array[0: num_instances, :, :]
@@ -220,9 +235,15 @@ class TextRenderer:
         glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
 
         # Update character ID buffer
-        temp_num_bytes = num_instances * 16  # 4 -> number of bytes of int
+        temp_num_bytes = num_instances * 16  # 16 -> number of bytes of int aligned to vec4
         temp_data = self.char_id_array[0: num_instances, :]
         glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
+
+        # Update color buffer
+        temp_num_bytes = num_instances * 16  # 16 -> number of bytes of vec4
+        temp_data = self.color_array[0: num_instances, :]
+        glBindBuffer(GL_UNIFORM_BUFFER, self.color_buffer)
         glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
 
         # Draw instanced characters
@@ -248,8 +269,10 @@ def main():
     clock = ClockGLFW()
 
     # Initialize a text rendered
-    text_renderer = TextRenderer(window_size)
-    text_renderer.set_font(r'C:\Windows\Fonts\arial.ttf', font_size=50)
+    text_renderer = TextRenderer()
+    text_renderer.SetFont(r'C:\Windows\Fonts\arial.ttf', font_size=50)
+    text_renderer.SetWindowSize(window_size)
+
 
     # Define some text
     test_text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit,\n' \
@@ -273,14 +296,14 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render text
-        text_renderer.add_text(test_text, 0, 0, 1.0, (255, 0, 0))
-        text_renderer.add_text(test_text, 1, 400, 1.0, (0, 255, 0))
+        text_renderer.AddText(test_text, 0, 0, 0.5, (255, 0, 0))
+        text_renderer.AddText(test_text, 1, 400, 1.0, (0, 255, 0))
 
         # Swap buffers
         glfw.swap_buffers(window)
 
     # Terminate the app
-    text_renderer.terminate()
+    text_renderer.Terminate()
     glfw.terminate()
 
 
