@@ -10,8 +10,8 @@ from OpenGL.GL import *
 # Add python modules
 from fractals.interactive_app import ClockGLFW, read_shader_source, create_shader_program, get_uniform_locations
 
-# TODO : Change the code such that text only gets added to a queue when calling "add_text" and gets renders all together
-#      : when calling "draw_text".
+# TODO : Check out the projection matrices and see if I can simplify them !!
+# TODO : Make the code nicer and move everything to the interactive app !!
 
 class CharacterSlot:
 
@@ -45,13 +45,13 @@ class TextRenderer:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         # Get uniform locations
-        self.uniform_locations = get_uniform_locations( self.shader_program, ['proj_mat'])
+        self.uniform_locations = get_uniform_locations( self.shader_program, ['proj_mat', 'color'])
 
         # Set buffers
         self._set_vertex_buffer()
         self._set_trans_mat_buffer()
         self._set_char_id_buffer()
-        self._set_color_buffer()
+
 
     def SetWindowSize(self, size):
         self.window_size = np.asarray(size).astype('int')
@@ -98,22 +98,9 @@ class TextRenderer:
         glBindBufferBase(GL_UNIFORM_BUFFER, 1, self.char_id_buffer)
 
 
-    def _set_color_buffer(self):
-        # Initialize the data
-        self.color_array = np.zeros(shape=(self.max_instances, 4), dtype='float32')
-        # Set color buffer
-        self.color_buffer = glGenBuffers(1)
-        glBindBuffer(GL_UNIFORM_BUFFER, self.color_buffer)
-        glBufferData(GL_UNIFORM_BUFFER, self.color_array.nbytes, None, GL_DYNAMIC_DRAW)
-        # Bind the buffer
-        color_buffer_block_index = glGetUniformBlockIndex(self.shader_program, 'color_buffer')
-        glUniformBlockBinding(self.shader_program, color_buffer_block_index, 2)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 2, self.color_buffer)
-
-
     def Terminate(self):
         # Delete OpenGL buffers
-        glDeleteBuffers(4, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer, self.color_buffer])
+        glDeleteBuffers(3, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer])
         glDeleteVertexArrays(1, [self.texture_vao])
         glDeleteTextures(1, [self.texture_array])
         glDeleteProgram(self.shader_program)
@@ -160,25 +147,23 @@ class TextRenderer:
 
 
     def AddText(self, text, x, y, scale, color):
-
-        # Rescale the color to [0, 1] range
-        text_color = (np.asarray(color) / 255.0).astype('float32')
+        color = np.asarray(color) / 255.0
 
         # Activate text rendering
         glUseProgram(self.shader_program)
+        glUniform3fv(self.uniform_locations['color'], 1, color.astype('float32'))
+        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, self.proj_mat.astype('float32'))
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.texture_array)
         glBindVertexArray(self.texture_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.texture_vbo)
 
-        # Save original x and y
-        x_start = x
-
         # Flip y-axis for top-left origin
         y = self.window_size[1] - y - self.font_size * scale
 
-        # Loop over all characters in the text
-        index = 0
+        # Loop over the text
+        x_start = x
+        instance_id = 0
         for c in text:
 
             # Get the current character
@@ -204,50 +189,36 @@ class TextRenderer:
                                   glm.scale(glm.mat4(1.0), glm.vec3(self.font_size * scale, self.font_size * scale, 0.0)))
 
                 # Set up the texture data
-                self.trans_mat_array[index, :, :] = np.array(temp_trans_mat).T
-                self.char_id_array[index, 0] = ch.ascii_id
-                self.color_array[index, 0:3] = text_color
+                self.trans_mat_array[instance_id, :, :] = np.array(temp_trans_mat).T
+                self.char_id_array[instance_id, 0] = ch.ascii_id
 
-                # Advance cursors for next glyph
+                # Advance x-position for next glyph
                 x += (ch.advance >> 6) * scale
 
                 # Update the working index
-                index += 1
+                instance_id += 1
 
-                # Draw call
-                if (index == self.max_instances):
-                    self.render(index)
-                    index = 0
+                # Intermediate draw call
+                if (instance_id == self.max_instances):
+                    self._draw_call(instance_id)
+                    instance_id = 0
 
         # Final draw call
-        self.render(index)
+        self._draw_call(instance_id)
 
 
-    def render(self, num_instances):
-
-        # Send uniforms to the GPu
-        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, self.proj_mat)
-
+    def _draw_call(self, num_instances):
         # Update transformation buffer
-        temp_num_bytes = num_instances * 64  # 64 -> number of bytes of mat4
         temp_data = self.trans_mat_array[0: num_instances, :, :]
         glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
-
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_data.nbytes, temp_data)
         # Update character ID buffer
-        temp_num_bytes = num_instances * 16  # 16 -> number of bytes of int aligned to vec4
         temp_data = self.char_id_array[0: num_instances, :]
         glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
-
-        # Update color buffer
-        temp_num_bytes = num_instances * 16  # 16 -> number of bytes of vec4
-        temp_data = self.color_array[0: num_instances, :]
-        glBindBuffer(GL_UNIFORM_BUFFER, self.color_buffer)
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_num_bytes, temp_data)
-
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, temp_data.nbytes, temp_data)
         # Draw instanced characters
         glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, num_instances)
+
 
 
 # Define main function
@@ -263,7 +234,7 @@ def main():
     glfw.window_hint(GLFW_VAR.GLFW_DOUBLEBUFFER, GLFW_VAR.GLFW_TRUE)
     window = glfw.create_window(window_size[0], window_size[1], 'Text rendering', None, None)
     glfw.make_context_current(window)
-    glfw.swap_interval(1)
+    glfw.swap_interval(0)
 
     # Initialize a clock
     clock = ClockGLFW()

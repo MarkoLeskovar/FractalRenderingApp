@@ -3,14 +3,13 @@
 
 // IN - Uniforms
 uniform sampler2DArray characters;
+uniform vec3 color;
 
 // IN - Buffers
 layout(std140) uniform char_id_buffer {
     int[NUM_INSTANCES] char_id;
 };
-layout(std140) uniform color_buffer {
-    vec4[NUM_INSTANCES] color;
-};
+
 
 // IN - From vertex shader
 in VS_OUT{
@@ -29,5 +28,5 @@ void main()
 
     // Sample the texture and get final color
     float sampled_value = texture(characters, character_coordinate).r;
-    fragment_color = vec4(color[fs_in.index].rgb, sampled_value);
+    fragment_color = vec4(color, sampled_value);
 }
