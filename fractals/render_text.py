@@ -10,8 +10,10 @@ from OpenGL.GL import *
 # Add python modules
 from fractals.interactive_app import ClockGLFW, read_shader_source, create_shader_program, get_uniform_locations
 
+# TODO : Change the code such that text only gets added to a queue when calling "add_text" and gets renders all together
+#      : when calling "draw_text".
 
-class Character:
+class CharacterSlot:
 
     def __init__(self, ascii_id, glyph):
         self.ascii_id = ascii_id                              # ID of the ASCII character
@@ -26,8 +28,7 @@ class TextRenderer:
         self.framebuffer_size = np.asarray(framebuffer_size).astype('int')
 
         # Get max uniform block size
-        max_uniform_block_size = glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE)
-        self.max_instances = int(max_uniform_block_size / (4 * 4 * 4))
+        self.max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / (4 * 4 * 4))
 
         # Read shader source code
         shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
@@ -43,7 +44,7 @@ class TextRenderer:
         glUseProgram(self.shader_program)
 
         # Get uniform locations
-        self.uniform_locations = get_uniform_locations( self.shader_program, ['color', 'proj_mat'])
+        self.uniform_locations = get_uniform_locations( self.shader_program, ['proj_mat', 'color'])
 
         # Define a projection matrix
         proj_mat = np.array(glm.ortho(0, self.framebuffer_size[0], 0, self.framebuffer_size[1], -1, 1)).T
@@ -64,21 +65,21 @@ class TextRenderer:
         ]).astype('float32')
 
 
-        # Configure VAO/VBO for texture quads
+        # Textured squad VAO and VBO
         self.texture_vao = glGenVertexArrays(1)
         glBindVertexArray(self.texture_vao)
-
         self.texture_vbo = glGenBuffers(1)
         glBindBuffer(GL_ARRAY_BUFFER, self.texture_vbo)
         glBufferData(GL_ARRAY_BUFFER, vertex_data.nbytes, vertex_data, GL_STATIC_DRAW)
+        # Enable VAO attributes
         glEnableVertexAttribArray(0)
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
 
-        # Setup texture array
+        # Initialize uniform buffer data
         self.trans_mat_array = np.zeros(shape=(self.max_instances, 4, 4), dtype='float32')
         self.char_id_array = np.zeros(shape=(self.max_instances, 4), dtype='int32')
 
-        # Set transforms buffer
+        # Set transformation matrices buffer
         self.trans_mat_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
         glBufferData(GL_UNIFORM_BUFFER, self.trans_mat_array.nbytes, None, GL_DYNAMIC_DRAW)
@@ -87,7 +88,7 @@ class TextRenderer:
         glUniformBlockBinding(self.shader_program, trans_mat_buffer_block_index, 0)
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.trans_mat_buffer)
 
-        # Set character id buffer
+        # Set character ids buffer
         self.char_id_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
         glBufferData(GL_UNIFORM_BUFFER, self.char_id_array.nbytes, None, GL_DYNAMIC_DRAW)
@@ -106,14 +107,14 @@ class TextRenderer:
         glDeleteProgram(self.shader_program)
 
 
-    def set_font(self, type, size):
-        self.font_size = int(size)
+    def set_font(self, font_type, font_size):
+        self.font_size = int(font_size)
 
         # Number of ASCII characters
         num_ASCII_char = 256
 
         # Load freetype characters
-        face = freetype.Face(type)
+        face = freetype.Face(font_type)
         face.set_pixel_sizes(self.font_size, self.font_size)
 
         # Disable byte-alignment restriction
@@ -124,6 +125,7 @@ class TextRenderer:
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.texture_array)
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, self.font_size, self.font_size, num_ASCII_char, 0, GL_RED, GL_UNSIGNED_BYTE, None)
+
         # Set texture options
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
@@ -135,14 +137,14 @@ class TextRenderer:
         for i in range(num_ASCII_char):
             # Load the character glyph
             face.load_char(chr(i), freetype.FT_LOAD_RENDER)
-            # Get face data
+            # Get character size and data
             face_width = face.glyph.bitmap.width
             face_height = face.glyph.bitmap.rows
             face_buffer = face.glyph.bitmap.buffer
-            # Update 3D image
+            # Update the 3D image
             glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, face_width, face_height, 1, GL_RED, GL_UNSIGNED_BYTE, face_buffer)
             # Store character for later use
-            self.characters[chr(i)] = Character(i, face.glyph)
+            self.characters[chr(i)] = CharacterSlot(i, face.glyph)
 
 
     def add_text(self, text, x, y, scale, color):
@@ -160,6 +162,9 @@ class TextRenderer:
 
         # Save original x and y
         x_start = x
+
+        # Flip y-axis for top-left origin
+        y = self.framebuffer_size[1] - self.font_size - y
 
         # Loop over all characters in the text
         index = 0
@@ -237,14 +242,14 @@ def main():
     glfw.window_hint(GLFW_VAR.GLFW_DOUBLEBUFFER, GLFW_VAR.GLFW_TRUE)
     window = glfw.create_window(window_size[0], window_size[1], 'Text rendering', None, None)
     glfw.make_context_current(window)
-    glfw.swap_interval(0)
+    glfw.swap_interval(1)
 
     # Initialize a clock
     clock = ClockGLFW()
 
     # Initialize a text rendered
     text_renderer = TextRenderer(window_size)
-    text_renderer.set_font(r'C:\Windows\Fonts\arial.ttf', size=50)
+    text_renderer.set_font(r'C:\Windows\Fonts\arial.ttf', font_size=50)
 
     # Define some text
     test_text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit,\n' \
@@ -268,8 +273,8 @@ def main():
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Render text
-        text_renderer.add_text(test_text, 10, 950, 1.0, (255, 0, 0))
-        text_renderer.add_text(test_text, 10, 350, 1.0, (0, 255, 0))
+        text_renderer.add_text(test_text, 0, 0, 1.0, (255, 0, 0))
+        text_renderer.add_text(test_text, 1, 400, 1.0, (0, 255, 0))
 
         # Swap buffers
         glfw.swap_buffers(window)
