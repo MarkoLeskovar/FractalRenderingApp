@@ -153,7 +153,8 @@ class FractalRenderingApp:
         glBufferData(GL_UNIFORM_BUFFER, cmap.nbytes, cmap, GL_DYNAMIC_DRAW)
         # Bind the buffer
         cmap_buffer_block_index = glGetUniformBlockIndex(self.program_color, 'cmap')
-        glBindBufferBase(GL_UNIFORM_BUFFER, cmap_buffer_block_index, self.cmap_buffer)
+        glUniformBlockBinding(self.program_color, cmap_buffer_block_index, 0)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.cmap_buffer)
 
 
         # Main app loop
