@@ -15,7 +15,6 @@ uniform int num_iter;
 // OUT - Final pixel color
 out vec4 fragment_color;
 
-
 // FUNCTION - Apply colormap with linear interpolation
 vec3 ApplyColormap(float iterations)
 {

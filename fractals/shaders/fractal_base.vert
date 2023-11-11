@@ -7,7 +7,6 @@ layout (location=1) in vec2 vertex_texture_coordinate;
 // OUT - Data for fragment shader
 out vec2 fragment_texture_coordinate;
 
-
 // FUNCTION - Main function
 void main()
 {
