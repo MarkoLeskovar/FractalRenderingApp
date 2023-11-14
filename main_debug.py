@@ -14,8 +14,8 @@ if not os.path.exists(path_to_output):
 	os.makedirs(path_to_output)
 
 
-# TODO : Add smooth-iteration count for fractal coloring
-# TODO : Add Julia set fractal
+# TODO : Add smooth-iteration count to python implementation for fractals coloring
+# TODO : Add Julia set fractals
 
 
 # Define main function
@@ -28,7 +28,7 @@ def main():
 	range_x = (-2, 1)
 	range_y = (-1.5, 1.5)
 
-	# Compute number of fractal iterations
+	# Compute number of fractals iterations
 	iterations = fract_mandelbrot.IterationsMandelbrotSet_parallel(img_size, range_x, range_y, max_iter)
 
 	# PLOT - Show iterations count
@@ -53,7 +53,7 @@ def main():
 	# PLOT - Show both histograms
 	plt.plot(hist / hist_sum, 'b-', label=f'Image size = {img_size[0]}x{img_size[1]}')
 	plt.plot(hist_LR / hist_sum_LR, 'r-', label=f'Image size = {img_size_LR[0]}x{img_size_LR[1]}')
-	plt.title('Histogram of fractal iterations')
+	plt.title('Histogram of fractals iterations')
 	plt.legend()
 	plt.show()
 

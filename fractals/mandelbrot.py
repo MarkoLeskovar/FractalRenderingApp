@@ -2,7 +2,7 @@ import numba
 import numpy as np
 
 
-# Mandelbrot set fractal
+# Mandelbrot set fractals
 @numba.njit(cache=True)
 def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
 
@@ -34,7 +34,7 @@ def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
 			img_iterations[i, j] = float(iter)
 
 
-# Mandelbrot set fractal - parallel
+# Mandelbrot set fractals - parallel
 @numba.njit(cache=True, parallel=True)
 def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_iter):
 
@@ -66,7 +66,7 @@ def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_i
 			img_iterations[i, j] = float(iter)
 
 
-# Wrapper function for Mandelbrot set fractal
+# Wrapper function for Mandelbrot set fractals
 def IterationsMandelbrotSet(img_size, bounds_x, bounds_y, num_iter):
 	# Convert the input to numpy arrays
 	img_size = np.asarray(img_size).astype('int')
@@ -79,7 +79,7 @@ def IterationsMandelbrotSet(img_size, bounds_x, bounds_y, num_iter):
 	return img_iterations
 
 
-# Wrapper function for Mandelbrot set fractal - parallel
+# Wrapper function for Mandelbrot set fractals - parallel
 def IterationsMandelbrotSet_parallel(img_size, bounds_x, bounds_y, num_iter):
 	# Convert the input to numpy arrays
 	img_size = np.asarray(img_size).astype('int')

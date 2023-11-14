@@ -1,8 +1,10 @@
-from fractals.interactive_app import FractalRenderingApp
+from fractals.fractal_render import FractalRenderingApp
 
 # Main function call
 if __name__ == '__main__':
     app = FractalRenderingApp(
         cmap_file='fractals/assets/cmaps_diverging.txt',
-        keymap_file='fractals/assets/keymap.txt',
+        settings_file='fractals/assets/settings.txt',
     )
+    app.Run()
+    app.Close()
