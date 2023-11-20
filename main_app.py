@@ -1,3 +1,4 @@
+# Import the main app
 from fractals.fractal_render import FractalRenderingApp
 
 # Main function call

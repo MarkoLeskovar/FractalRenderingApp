@@ -1,0 +1,18 @@
+# QUALITATIVE COLORMAPS
+# https://pratiman-91.github.io/colormaps/docs/Qualitative
+
+# ColorCET
+cet_g_bw
+cet_g_bw_r
+cet_g_bw_minc
+cet_g_bw_minc_r
+cet_g_bw_minc1
+cet_g_bw_minc1_r
+cet_g_bw_minc_maxl_r
+cet_g_bw_minc_maxl
+cet_g_bw_minc_minl_r
+cet_g_bw_minc_minl
+cet_g_category10
+cet_g_category10_r
+cet_g_hv
+cet_g_hv_r

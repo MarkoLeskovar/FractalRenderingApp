@@ -65,9 +65,9 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Add functionality to save a screenshot of actual render to a file together with a metadata.json file
 # TODO : Refactor the code to make it nicer and easier to read
 # TODO : Check if OpenGL functions are implemented correctly
+# TODO : Add Julia Set rendering that changes depending on the position of the mouse pointer
 
 
 class FractalRenderingApp:
