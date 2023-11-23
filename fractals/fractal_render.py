@@ -69,6 +69,14 @@ O------------------------------------------------------------------------------O
 # TODO : Check if OpenGL functions are implemented correctly
 # TODO : Add Julia Set rendering that changes depending on the position of the mouse pointer
 
+# TODO : (For later) -> Modify the canvas class such that it can be positioned anywhere on the window. This means to add
+#      : some position offset from top left corner which has to be included in computation of mouse position.
+# TODO : Create a canvas manager class that can handle multiple canvases and updates all of them at the same time or
+#      : only the currently active one.
+# TODO : Create a derived RenderCanvas class that adds OpenGL rendering functionality on top of the parent class. This
+#      : Derived class should merge all the functionality of a single render pass and should act as RenderToTexture
+# TODO : Check how the above functionality should be achieved. Change glViewport or manually join rendering passes?
+
 
 class FractalRenderingApp:
 

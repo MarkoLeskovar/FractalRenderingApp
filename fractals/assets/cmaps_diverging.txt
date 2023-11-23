@@ -24,22 +24,14 @@ cork
 cork_r
 lisbon
 lisbon_r
-roma
-roma_r
-tofino
-tofino_r
 vik
 vik_r
 
 # SciViz
 br4div
 br4div_r
-bruce2
-bruce2_r
 d_blgr3
 d_blgr3_r
-d_seteq2
-d_seteq2_r
 div1_blue_orange
 div1_blue_orange_r
 div2_gray_gold
@@ -52,33 +44,11 @@ hier2p
 hier2p_r
 tr4
 tr4_r
-w5m4
-w5m4_r
 w_ymiddle1
 w_ymiddle1_r
 
 # ColorCET
-cet_d_bkr
-cet_d_bkr_r
-cet_d_bky
-cet_d_bky_r
 cet_d_bwg
 cet_d_bwg_r
-cet_d_bwr
-cet_d_bwr_r
-cet_d_gkr
-cet_d_gkr_r
-cet_d_gwr
-cet_d_gwr_r
-cet_d_gwv
-cet_d_gwv_r
-cet_d_linear_bjr
-cet_d_linear_bjr_r
-cet_d_linear_bjy
-cet_d_linear_bjy_r
-cet_d_protanopic_deuteranopic_bwy
-cet_d_protanopic_deuteranopic_bwy_r
 cet_d_rainbow_bgymr
 cet_d_rainbow_bgymr_r
-cet_d_tritanopic_cwr
-cet_d_tritanopic_cwr_r

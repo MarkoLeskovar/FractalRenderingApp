@@ -1,0 +1,16 @@
+# OTHER COLORMAPS
+# https://pratiman-91.github.io/colormaps/docs/Other
+
+# NCAR NCL
+GMT_seis
+GMT_seis_r
+NCV_jaisnd
+NCV_jaisnd_r
+NCV_jet
+NCV_jet_r
+
+# Ncview
+NCV_blu_red
+NCV_blu_red_r
+NCV_blue_red
+NCV_blue_red_r
