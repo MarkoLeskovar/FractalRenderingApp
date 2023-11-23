@@ -1,5 +1,5 @@
 # FractalRendering
-Interactive Python app for visualization of Mandelbrot Set  
+Interactive app for visualization of Mandelbrot Set written in Python and GLSL  
 
 ## Features
 TODO : Add text  
@@ -16,5 +16,5 @@ TODO : Add text
 ## Acknowledgments
 Plotting algorithms for the Mandelbrot set: https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set  
 Colection of colormaps by Pratiman Pratel: https://pratiman-91.github.io/colormaps  
-Colection of font in .tff format: https://www.fontsquirrel.com  
+Colection of font files in .ttf format: https://www.fontsquirrel.com  
 
