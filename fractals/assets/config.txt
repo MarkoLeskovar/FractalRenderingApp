@@ -1,0 +1,33 @@
+# Controls
+EXIT               : KEY_ESCAPE
+INFO               : KEY_I
+VSYNC              : KEY_V
+FULLSCREEN         : KEY_F
+SCREENSHOT         : KEY_S
+ZOOM_IN            : KEY_UP
+ZOOM_OUT           : KEY_DOWN
+SHIFT_VIEW         : MOUSE_BUTTON_LEFT
+RESET_VIEW         : KEY_R
+ITER_INCREASE      : KEY_KP_ADD
+ITER_DECREASE      : KEY_KP_SUBTRACT
+PIX_SCALE_INCREASE : KEY_KP_MULTIPLY
+PIX_SCALE_DECREASE : KEY_KP_DIVIDE
+CMAP_NEXT          : KEY_RIGHT
+CMAP_PREV          : KEY_LEFT
+
+# Fractal iterations
+NUM_ITER           : 64
+NUM_ITER_MIN       : 64
+NUM_ITER_MAX       : 2048
+NUM_ITER_STEP      : 32
+
+# Pixel scaling
+PIX_SCALE_MIN      : 0.5
+PIX_SCALE_MAX      : 8.0
+PIX_SCALE_STEP     : 0.25
+
+# On-screen text
+TEXT_SIZE          : 20
+
+# Colormaps
+CMAPS              : cmaps_diverging.txt
