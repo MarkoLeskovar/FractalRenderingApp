@@ -5,14 +5,16 @@ Interactive app for visualization of Mandelbrot Set written in Python and GLSL.
 
 
 ## Features
+
 * Interactive panning and zooming
 * Arbitrary window resizing
-* Customizable DPI-scaling
-* Customizable keymap
-* Various colormaps
+* Automatic DPI-scaling
+* 296 available colormaps
+* Customizable settings
 
 
-## Usage
+## How to Use?
+
 **Note:** Please make sure you have installed the latest version of [Python](https://www.python.org/downloads/) before 
 continuing. Copy the following commands into the terminal.   
 
@@ -33,13 +35,28 @@ continuing. Copy the following commands into the terminal.
    ```
 
 
-## Customization
-Change the `fractals/assets/congif.txt` file to change input keys, various fractal settings and colormap lists.
+## Controls & Customization
 
-## Development
+* Use `ARROW KEY UP` / `DOWN` or `mouse scroll` to zoom in and out.
+* Use `ARROW KEY LEFT` / `RIGHT` to change colormaps.
+* Use `+` / `-` to increase or decrease the number of fractal iterations.
+* Use `*` / `/` to increase or decrease the pixel scaling.
+* Use `r` to reset pan and zoom.
+* Use `s` to take a screenshot.
+* Use `f` to toggle fullscreen.
+* Use `i` to toggle info text.
+* Use `v` to toggle vsync.
+
+Take a look at the [`config.txt`](fractals/assets/config.txt) file to see all available input keys, various fractal 
+settings and how to specify custom colormap lists.
+
+
+## Next Steps
+
 - [x] Interactive visualization of the Mandelbrot Set fractal.
 - [ ] Create an executable file via PyInstaller.
 - [ ] Add Julia Set fractal rendering.
+
 
 ## Links
 
