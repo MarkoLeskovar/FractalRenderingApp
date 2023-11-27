@@ -16,6 +16,10 @@ from .color import GetColormapArray, LoadColormapsFile
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
 
+# Paths
+PATH_SHADERS = os.path.join(os.path.dirname(__file__), 'shaders')
+PATH_ASSETS = os.path.join(os.path.dirname(__file__), 'assets')
+
 # Default keymap dictionary
 DEFAULT_SETTINGS = {
     # Keymap
@@ -49,6 +53,7 @@ DEFAULT_SETTINGS = {
 
 # Default colormaps list
 DEFAULT_CMAPS = [
+    'balance'
     'cet_l_tritanopic_krjcw1_r',
     'cet_l_protanopic_deuteranopic_kbw_r',
     'jungle_r',
@@ -112,7 +117,7 @@ class FractalRenderingApp:
         # Create GLFW window and set the icon
         self.window_vsync = True
         self.window = self.create_main_window(window_size, self.window_vsync)
-        icon_path = os.path.join(os.path.abspath(__file__), os.pardir, 'assets', 'mandelbrot_set.png')
+        icon_path = os.path.join(PATH_ASSETS, 'mandelbrot_set.png')
         icon = Image.open(icon_path).resize((32, 32))
         glfw.set_window_icon(self.window, 1, icon)
 
@@ -138,10 +143,9 @@ class FractalRenderingApp:
         self.set_callback_functions_glfw()
 
         # Read shader source code
-        shaders_path = os.path.join(os.path.abspath(__file__), os.pardir, 'shaders')
-        base_vert_source = read_shader_source(os.path.join(shaders_path, 'fractal_base.vert'))
-        color_frag_source = read_shader_source(os.path.join(shaders_path, 'fractal_color.frag'))
-        mandelbrot_frag_source = read_shader_source(os.path.join(shaders_path, 'fractal_mandelbrot.frag'))
+        base_vert_source = read_shader_source(os.path.join(PATH_SHADERS, 'fractal_base.vert'))
+        color_frag_source = read_shader_source(os.path.join(PATH_SHADERS, 'fractal_color.frag'))
+        mandelbrot_frag_source = read_shader_source(os.path.join(PATH_SHADERS, 'fractal_mandelbrot.frag'))
         # Create shader programs
         self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)
         self.program_color = create_shader_program(base_vert_source, color_frag_source)
