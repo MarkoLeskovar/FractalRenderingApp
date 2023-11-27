@@ -9,10 +9,9 @@ from OpenGL.GL import *
 # Add python modules
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
+# Paths
+PATH_TO_SHADERS = os.path.join(os.path.dirname(__file__), 'shaders')
 
-# TODO : Make the code nicer and move everything to the interactive app !!
-
-PATH_SHADERS = os.path.join(os.path.dirname(__file__), 'shaders')
 
 '''
 O------------------------------------------------------------------------------O
@@ -28,8 +27,8 @@ class TextRender:
         self.max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
 
         # Read shader source code
-        vertex_shader_source = read_shader_source(os.path.join(PATH_SHADERS, 'text_render.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(PATH_SHADERS, 'text_render.frag'))
+        vertex_shader_source = read_shader_source(os.path.join(PATH_TO_SHADERS, 'text_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(PATH_TO_SHADERS, 'text_render.frag'))
         # Dynamically modify the shader source code before compilation
         vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
         fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
@@ -51,7 +50,6 @@ class TextRender:
         # Initialize empty variables
         self.characters = {}
         self.font_texture_array = None
-
 
 
     # O------------------------------------------------------------------------------O

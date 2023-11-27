@@ -1,4 +1,3 @@
-# OpenGL modules
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileShader
 

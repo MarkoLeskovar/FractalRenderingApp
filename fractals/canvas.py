@@ -1,5 +1,6 @@
 import numpy as np
 
+
 '''
 O------------------------------------------------------------------------------O
 | CANVAS CLASS FOR WINDOW DRAWING AREA HANDLING                                |

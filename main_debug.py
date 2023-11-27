@@ -12,11 +12,6 @@ import fractals.mandelbrot as fract_mandelbrot
 DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRenderingDebug')
 
 
-# TODO : Clean up this file.
-# TODO : Add Julia set fractals
-# TODO : Combine histogram recoloring with smooth iterations count
-
-
 # Define main function
 def main():
 

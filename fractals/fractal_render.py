@@ -72,20 +72,6 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Refactor the code to make it nicer and easier to read
-# TODO : Add config option for custom font file
-# TODO : Check if OpenGL functions are implemented correctly
-# TODO : Add Julia Set rendering that changes depending on the position of the mouse pointer
-
-# TODO : (For later) -> Modify the canvas class such that it can be positioned anywhere on the window. This means to add
-#      : some position offset from top left corner which has to be included in computation of mouse position.
-# TODO : Create a canvas manager class that can handle multiple canvases and updates all of them at the same time or
-#      : only the currently active one.
-# TODO : Create a derived RenderCanvas class that adds OpenGL rendering functionality on top of the parent class. This
-#      : Derived class should merge all the functionality of a single render pass and should act as RenderToTexture
-# TODO : Check how the above functionality should be achieved. Change glViewport or manually join rendering passes?
-
-
 class FractalRenderingApp:
 
     def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0), config_file=None, output_dir=None):
@@ -166,7 +152,6 @@ class FractalRenderingApp:
         self.framebuffer_color, self.texture_color = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
-        # TODO : Create textured polygon class
         # Create vertices for textured polygon
         # points = np.asarray([[0, 0], [0, 600], [600, 600], [600, 400], [800, 400], [800, 0]])
         points = np.asarray([[0, 0], [0, self.canvas.size[1]], self.canvas.size, [self.canvas.size[0], 0]])
@@ -349,9 +334,6 @@ class FractalRenderingApp:
             self.window_vsync = not self.window_vsync
             glfw.swap_interval(int(self.window_vsync))
 
-
-        # TODO : Format a code in a nice way !!!
-        # TODO : Add metadata information function (getFucntion)
         # Save a screenshot
         if (key == getattr(glfw, self.config['SCREENSHOT']) and action == glfw.PRESS):
             os.makedirs(self.output_dir, exist_ok=True)

@@ -1,6 +1,7 @@
 import numba
 import numpy as np
 
+
 '''
 O-------------------------------------------------------------------------------O
 | MANDELBROT SET ITERATIONS COUNT                                               |
