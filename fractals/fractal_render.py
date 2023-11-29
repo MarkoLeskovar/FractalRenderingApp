@@ -11,59 +11,10 @@ from OpenGL.GL import *
 # Add custom modules
 from .canvas import Canvas
 from .clock import ClockGLFW
+from .default_config import *
 from .text_render import TextRender
-from .color import GetColormapArray, LoadColormapsFile
+from .color import GetColormapArray
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
-
-
-# Paths
-PATH_TO_SHADERS = os.path.join(os.path.dirname(__file__), 'shaders')
-PATH_TO_ASSETS = os.path.join(os.path.dirname(__file__), 'assets')
-
-# Default keymap dictionary
-DEFAULT_SETTINGS = {
-    # Controls
-    'EXIT':                 'KEY_ESCAPE',
-    'INFO':                 'KEY_I',
-    'VSYNC':                'KEY_V',
-    'FULLSCREEN':           'KEY_F',
-    'SCREENSHOT':           'KEY_S',
-    'ZOOM_IN':              'KEY_UP',
-    'ZOOM_OUT':             'KEY_DOWN',
-    'SHIFT_VIEW':           'MOUSE_BUTTON_LEFT',
-    'RESET_VIEW':           'KEY_R',
-    'ITER_INCREASE':        'KEY_KP_ADD',
-    'ITER_DECREASE':        'KEY_KP_SUBTRACT',
-    'PIX_SCALE_INCREASE':   'KEY_KP_MULTIPLY',
-    'PIX_SCALE_DECREASE':   'KEY_KP_DIVIDE',
-    'CMAP_NEXT':            'KEY_RIGHT',
-    'CMAP_PREV':            'KEY_LEFT',
-    # Fractal iterations
-    'NUM_ITER':             64,
-    'NUM_ITER_MIN':         64,
-    'NUM_ITER_MAX':         2048,
-    'NUM_ITER_STEP':        32,
-    # Pixel scaling
-    'PIX_SCALE_MIN':        0.5,
-    'PIX_SCALE_MAX':        8.0,
-    'PIX_SCALE_STEP':       0.25,
-    # On-screen text
-    'TEXT_SIZE':            20,
-    # Colormaps
-    'CMAPS':                '',
-}
-
-# Default colormaps list
-DEFAULT_CMAPS = [
-    'balance',
-    'cet_l_tritanopic_krjcw1_r',
-    'cet_l_protanopic_deuteranopic_kbw_r',
-    'jungle_r',
-    'apple_r'
-    ]
-
-# Define default output directory
-DEFAULT_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
 
 
 '''
@@ -74,41 +25,36 @@ O------------------------------------------------------------------------------O
 
 class FractalRenderingApp:
 
-    def __init__(self, window_size=(800, 600), range_x=(-2.0, 1.0), config_file=None, output_dir=None):
+    # "Static" variables
+    path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')
+    path_to_assets = os.path.join(os.path.dirname(__file__), 'assets')
 
-        # Load the config file
-        self.config = DEFAULT_SETTINGS
-        if config_file is not None:
-            self.config = self.load_config_file(config_file)
+    def __init__(self, app_config=None, fractal_config=None, controls_config=None, output_dir=None, cmaps=None):
 
-        # Load colormaps file
+        # Set app configuration variables
+        self.app_cnfg = self.set_default_if_none(DEFAULT_APP_CONFIG, app_config,)
+        self.controls_cnfg = self.set_default_if_none(DEFAULT_CONTROLS_CONFIG, controls_config)
+        self.fractal_cnfg = self.set_default_if_none(DEFAULT_FRACTAL_CONFIG, fractal_config)
+        self.output_dir = self.set_default_if_none(DEFAULT_OUTPUT_DIR, output_dir)
+        self.cmaps = self.set_default_if_none(DEFAULT_CMAPS, cmaps)
         self.cmap_id = 0
-        self.cmap_names = DEFAULT_CMAPS
-        if self.config['CMAPS'] != '':
-            self.cmap_names = LoadColormapsFile(os.path.join(PATH_TO_ASSETS, self.config['CMAPS']))
-
-
-        # Output directory for screenshots
-        self.output_dir = DEFAULT_OUTPUT_DIR
-        if output_dir is not None:
-            self.output_dir = output_dir
 
         # Fractal interation settings
-        self.num_iter = int(self.config['NUM_ITER'])
-        self.num_iter_min = int(self.config['NUM_ITER_MIN'])
-        self.num_iter_max = int(self.config['NUM_ITER_MAX'])
-        self.num_iter_step = int(self.config['NUM_ITER_STEP'])
+        self.num_iter = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER'])
+        self.num_iter_min = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_MIN'])
+        self.num_iter_max = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_MAX'])
+        self.num_iter_step = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_STEP'])
 
         # Pixel scaling settings
-        self.pix_scale_min = float(self.config['PIX_SCALE_MIN'])
-        self.pix_scale_max = float(self.config['PIX_SCALE_MAX'])
-        self.pix_scale_step = float(self.config['PIX_SCALE_STEP'])
+        self.pix_scale_min = float(self.app_cnfg['PIX_SCALE_MIN'])
+        self.pix_scale_max = float(self.app_cnfg['PIX_SCALE_MAX'])
+        self.pix_scale_step = float(self.app_cnfg['PIX_SCALE_STEP'])
 
         # Create GLFW window and set the icon
         self.window_vsync = True
+        window_size = (int(self.app_cnfg['WIN_WIDTH']), int(self.app_cnfg['WIN_HEIGHT']))
         self.window = self.create_main_window(window_size, self.window_vsync)
-        icon_path = os.path.join(PATH_TO_ASSETS, 'mandelbrot_set.png')
-        icon = Image.open(icon_path).resize((32, 32))
+        icon = Image.open(os.path.join(self.path_to_assets, 'mandelbrot_set.png')).resize((256, 256))
         glfw.set_window_icon(self.window, 1, icon)
 
         # Get the actual window size
@@ -117,25 +63,27 @@ class FractalRenderingApp:
         self.render_size = (self.window_size / self.pix_scale).astype('int')
 
         # Create a canvas
+        range_x = (float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN']),
+                   float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX']))
         self.canvas = Canvas(self.render_size, range_x)
 
         # Create GLFW clock
         self.clock = ClockGLFW()
 
         # Create a text renderer
-        self.text_size = int(self.config['TEXT_SIZE'])
-        self.text_font_type = os.path.join(PATH_TO_ASSETS, 'NotoMono-Regular.ttf')
+        self.text_size = int(self.app_cnfg['FONT_SIZE'])
+        self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
         self.text_render = TextRender()
-        self.text_render.SetFont(self.text_font_type, self.text_size * self.pix_scale)
+        self.text_render.SetFont(self.text_file, self.text_size * self.pix_scale)
         self.text_render.SetWindowSize(self.window_size)
 
         # Set GLFW callback functions
         self.set_callback_functions_glfw()
 
         # Read shader source code
-        base_vert_source = read_shader_source(os.path.join(PATH_TO_SHADERS, 'fractal_base.vert'))
-        color_frag_source = read_shader_source(os.path.join(PATH_TO_SHADERS, 'fractal_color.frag'))
-        mandelbrot_frag_source = read_shader_source(os.path.join(PATH_TO_SHADERS, 'fractal_mandelbrot.frag'))
+        base_vert_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_base.vert'))
+        color_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_color.frag'))
+        mandelbrot_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_mandelbrot.frag'))
         # Create shader programs
         self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)
         self.program_color = create_shader_program(base_vert_source, color_frag_source)
@@ -171,7 +119,7 @@ class FractalRenderingApp:
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
 
         # Create buffers
-        self.set_cmap_buffer(self.cmap_names[self.cmap_id])
+        self.set_cmap_buffer(self.cmaps[self.cmap_id])
 
 
     def Run(self):
@@ -200,6 +148,11 @@ class FractalRenderingApp:
         # Terminate GLFW
         glfw.destroy_window(self.window)
         glfw.terminate()
+
+
+    @classmethod
+    def SetPathToAssets(cls, path):
+        cls.path_to_assets = path
 
 
     # O------------------------------------------------------------------------------O
@@ -245,21 +198,21 @@ class FractalRenderingApp:
 
     def callback_content_scale(self, window, scale_x, scale_y):
         self.update_window_size(self.window_size, scale_x)
-        self.text_render.SetFont(self.text_font_type, self.text_size * self.pix_scale)
+        self.text_render.SetFont(self.text_file, self.text_size * self.pix_scale)
         self.draw_call()
 
 
     def callback_keyboad_button(self, window, key, scancode, action, mods):
         # Exit the app
-        if (key == getattr(glfw, self.config['EXIT']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['EXIT']) and action == glfw.PRESS):
             self.window_open = False
 
         # Show into text
-        if (key == getattr(glfw, self.config['INFO']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['INFO']) and action == glfw.PRESS):
             self.show_info_text = not self.show_info_text
 
         # Toggle fullscreen
-        if (key == getattr(glfw, self.config['FULLSCREEN']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['FULLSCREEN']) and action == glfw.PRESS):
             # Make fullscreen
             if not self.window_fullscreen:
                 self.window_fullscreen = True
@@ -276,66 +229,66 @@ class FractalRenderingApp:
                                         self.window_size_previous[0], self.window_size_previous[1], glfw.DONT_CARE)
 
         # Increase number of iterations
-        if (key == getattr(glfw, self.config['ITER_INCREASE']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['ITER_INCREASE']) and action == glfw.PRESS):
             self.num_iter = min(self.num_iter + self.num_iter_step, self.num_iter_max)
 
 
         # Decrease number of iterations
-        if (key == getattr(glfw, self.config['ITER_DECREASE']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['ITER_DECREASE']) and action == glfw.PRESS):
             self.num_iter = max(self.num_iter - self.num_iter_step, self.num_iter_min)
 
 
         # Reset shift and scale
-        if (key == getattr(glfw, self.config['RESET_VIEW']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['RESET_VIEW']) and action == glfw.PRESS):
             self.canvas.ResetShiftAndScale()
             # Also reset the number of fractals iterations
             self.num_iter = self.num_iter_min
 
         # Increase pixel scale
-        if (key == getattr(glfw, self.config['PIX_SCALE_INCREASE']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS):
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
             self.update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
-        if (key == getattr(glfw, self.config['PIX_SCALE_DECREASE']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS):
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
             self.update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
-        if (key == getattr(glfw, self.config['ZOOM_IN'])):
+        if (key == getattr(glfw, self.controls_cnfg['ZOOM_IN'])):
             if (action == glfw.PRESS):
                 self.keyboard_up_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_up_key_hold = False
 
         # Hold zoom-out
-        if (key == getattr(glfw, self.config['ZOOM_OUT'])):
+        if (key == getattr(glfw, self.controls_cnfg['ZOOM_OUT'])):
             if (action == glfw.PRESS):
                 self.keyboard_down_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_down_key_hold = False
 
         # Next colormap
-        if (key == getattr(glfw, self.config['CMAP_NEXT']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['CMAP_NEXT']) and action == glfw.PRESS):
             self.cmap_id += 1
-            if self.cmap_id >= len(self.cmap_names):
+            if self.cmap_id >= len(self.cmaps):
                 self.cmap_id = 0
-            self.update_cmap_buffer(self.cmap_names[self.cmap_id])
+            self.update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Previous colormap
-        if (key == getattr(glfw, self.config['CMAP_PREV']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['CMAP_PREV']) and action == glfw.PRESS):
             self.cmap_id -= 1
             if self.cmap_id < 0:
-                self.cmap_id = len(self.cmap_names) - 1
-            self.update_cmap_buffer(self.cmap_names[self.cmap_id])
+                self.cmap_id = len(self.cmaps) - 1
+            self.update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Toggle vsync for uncapped frame rate
-        if (key == getattr(glfw, self.config['VSYNC']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['VSYNC']) and action == glfw.PRESS):
             self.window_vsync = not self.window_vsync
             glfw.swap_interval(int(self.window_vsync))
 
         # Save a screenshot
-        if (key == getattr(glfw, self.config['SCREENSHOT']) and action == glfw.PRESS):
+        if (key == getattr(glfw, self.controls_cnfg['SCREENSHOT']) and action == glfw.PRESS):
             os.makedirs(self.output_dir, exist_ok=True)
             # Get current screenshot counter
             counter = 1
@@ -351,7 +304,7 @@ class FractalRenderingApp:
 
     def callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
-        if (button == getattr(glfw, self.config['SHIFT_VIEW'])):
+        if (button == getattr(glfw, self.controls_cnfg['SHIFT_VIEW'])):
             if (action == glfw.PRESS):
                 self.mouse_left_button_hold = True
             elif (action == glfw.RELEASE):
@@ -405,19 +358,11 @@ class FractalRenderingApp:
         self.framebuffer_color, self.texture_color = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
-    def load_config_file(self, keymap_file):
-        # Open the file
-        with open(keymap_file, mode='r') as f:
-            lines_raw = f.readlines()
-        # Parse the lines
-        keymap_dict = {}
-        for line in lines_raw:
-            line = line.split('#')[0]
-            line = line.strip('\n').replace(' ', '')
-            if len(line) != 0:
-                line = line.split(':')
-                keymap_dict[line[0]] = line[1]
-        return keymap_dict
+    def set_default_if_none(self, default_value, value=None):
+        output_value = default_value
+        if value is not None:
+            output_value = value
+        return output_value
 
 
     # O------------------------------------------------------------------------------O
@@ -501,7 +446,7 @@ class FractalRenderingApp:
 
 
     def get_info_text(self):
-        text = (f'CMAP = {self.cmap_names[self.cmap_id]}\n'
+        text = (f'CMAP = {self.cmaps[self.cmap_id]}\n'
                 f'ZOOM = {(self.canvas.scale_abs / self.canvas.scale_abs_default):.2E}\n'
                 f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
                 f'RENDER = {self.render_size[0]}x{self.render_size[1]}\n'

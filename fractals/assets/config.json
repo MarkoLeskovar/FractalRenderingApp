@@ -1,0 +1,39 @@
+{
+    "APP": {
+        "WIN_WIDTH":            800,
+        "WIN_HEIGHT":           600,
+        "FONT_SIZE":            20,
+        "FONT_FILE":            "NotoMono-Regular.ttf",
+        "PIX_SCALE_MIN":        0.5,
+        "PIX_SCALE_MAX":        8.0,
+        "PIX_SCALE_STEP":       0.25
+    },
+    "CONTROLS": {
+        "CMAP_NEXT":            "KEY_RIGHT",
+        "CMAP_PREV":            "KEY_LEFT",
+        "EXIT":                 "KEY_ESCAPE",
+        "FULLSCREEN":           "KEY_F",
+        "INFO":                 "KEY_I",
+        "ITER_DECREASE":        "KEY_KP_SUBTRACT",
+        "ITER_INCREASE":        "KEY_KP_ADD",
+        "PIX_SCALE_DECREASE":   "KEY_KP_DIVIDE",
+        "PIX_SCALE_INCREASE":   "KEY_KP_MULTIPLY",
+        "RESET_VIEW":           "KEY_R",
+        "SCREENSHOT":           "KEY_S",
+        "SHIFT_VIEW":           "MOUSE_BUTTON_LEFT",
+        "VSYNC":                "KEY_V",
+        "ZOOM_IN":              "KEY_UP",
+        "ZOOM_OUT":             "KEY_DOWN"
+    },
+    "FRACTAL": {
+        "MANDELBROT": {
+            "NUM_ITER":         64,
+            "NUM_ITER_MAX":     2048,
+            "NUM_ITER_MIN":     64,
+            "NUM_ITER_STEP":    32,
+            "RANGE_X_MAX":      1.0,
+            "RANGE_X_MIN":      -2.0
+        }
+    },
+    "CMAPS_FILE": "cmaps_diverging.txt"
+}
