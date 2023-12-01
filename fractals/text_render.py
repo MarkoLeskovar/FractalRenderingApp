@@ -85,7 +85,8 @@ class TextRender:
         self.font_texture_array = glGenTextures(1)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.font_texture_array)
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, self.font_texture_size, self.font_texture_size, num_ASCII_char, 0, GL_RED, GL_UNSIGNED_BYTE, None)
+        zero_array = np.zeros(shape=(self.font_texture_size * self.font_texture_size * num_ASCII_char), dtype='uint8')
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, self.font_texture_size, self.font_texture_size, num_ASCII_char, 0, GL_RED, GL_UNSIGNED_BYTE, zero_array)
 
         # Set texture options
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
