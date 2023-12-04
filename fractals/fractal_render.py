@@ -54,7 +54,7 @@ class FractalRenderingApp:
         self.window_vsync = True
         window_size = (int(self.app_cnfg['WIN_WIDTH']), int(self.app_cnfg['WIN_HEIGHT']))
         self.window = self.create_main_window(window_size, self.window_vsync)
-        icon = Image.open(os.path.join(self.path_to_assets, 'mandelbrot_set.png')).resize((256, 256))
+        icon = Image.open(os.path.join(self.path_to_assets, 'mandelbrot.png')).resize((256, 256))
         glfw.set_window_icon(self.window, 1, icon)
 
         # Get the actual window size

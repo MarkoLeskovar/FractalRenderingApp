@@ -72,7 +72,7 @@ class Canvas():
         self.scale_abs *= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
         if (self.scale_abs / self.scale_abs_default) > self.scale_rel_max:
             self.scale_abs = self.scale_rel_max * self.scale_abs_default  # Max zoom
-        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
+        self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
         self.range_x, self.range_y = self.GetRangeXY()
 
 
@@ -81,7 +81,7 @@ class Canvas():
         self.scale_abs /= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
         if (self.scale_abs / self.scale_abs_default) < self.scale_rel_min:
             self.scale_abs = self.scale_rel_min * self.scale_abs_default  # Min zoom
-        self.shift += self.W2S(self.S2W(self.mouse_pos)) - self.W2S(temp_MP_w_start)  # Correct position by panning
+        self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
         self.range_x, self.range_y = self.GetRangeXY()
 
 

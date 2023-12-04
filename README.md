@@ -15,13 +15,16 @@ Interactive app for visualization of the Mandelbrot Set written in Python and GL
 * 296 available colormaps.
 
 
-## How to Use?
+## Usage
 
-The app is tested and works on Windows 11 and Linux Debian 11. The app should also work on MacOS systems that that still
+### How to run the app in Python?
+
+The app is tested and works on Windows 11 and Linux Debian 11. The app should also work on MacOS systems that still
 support OpenGL. 
 
 Please make sure you have installed the latest version of [Python](https://www.python.org/downloads/) before continuing. Furthermore, it is advisable
-to use python and install modules inside a [virtual environment](https://docs.python.org/3/library/venv.html). Copy the following commands into the terminal:   
+to use python and install modules inside a [virtual environment](https://docs.python.org/3/library/venv.html). Copy the 
+following commands into the terminal:   
 
 1. Clone the repository:  
    ```sh  
@@ -45,6 +48,17 @@ enable the dedicated GPU in your
 or [AMD Radeon](https://www.amd.com/en/support/kb/faq/dh2-024) software.
 
 
+### How to create executable app?
+
+The app can also be used without installing a Pyhton interpreter or any module. This is achieved thought the use of 
+[Pyinstaller](https://pyinstaller.org/en/stable/). You can create the executable yourself by running the 
+[`main_install.py`](install/main_install.py) or simply download the 
+pre-build package from the link bellow:   
+
+* [FractalRenderingApp.zip](https://drive.google.com/file/d/1-zQUwWqqyXyY8jeoEJTFOBBvRyyCrIC6/view?usp=sharing) 
+for Windows 10/11 x64.
+
+
 ## Controls & Customization
 
 Fully customizable list of all available app settings and controls is available in the [`config.json`](fractals/assets/config.json) file. Bellow
@@ -61,10 +75,11 @@ you will find some of the most used keys.
 * Use `V` to toggle vsync.
 
 
+
 ## Next Steps
 
 - [x] Interactive visualization of the Mandelbrot Set fractal.
-- [ ] Create an executable file via PyInstaller.
+- [x] Create an executable file via PyInstaller.
 - [ ] Add Julia Set fractal rendering.
 
 

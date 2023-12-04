@@ -1,9 +1,14 @@
 import os
+import sys
 import json
 from fractals.color import LoadColormapsFile
 from fractals.fractal_render import FractalRenderingApp
 
+# Define path to assets depending on if the app is bundled or not
 PATH_TO_ASSETS = os.path.join(os.path.dirname(__file__), 'fractals', 'assets')
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    PATH_TO_ASSETS = os.curdir
+
 
 # Main function call
 if __name__ == '__main__':
