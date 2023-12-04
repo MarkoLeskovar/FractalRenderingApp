@@ -19,7 +19,7 @@ Interactive app for visualization of the Mandelbrot Set written in Python and GL
 
 ### How to run the app in Python?
 
-The app is tested and works on Windows 11 and Linux Debian 11. The app should also work on MacOS systems that still
+The app is tested and works on Windows 11 and Linux Debian 11. It should also work on MacOS systems that still
 support OpenGL. 
 
 Please make sure you have installed the latest version of [Python](https://www.python.org/downloads/) before continuing. Furthermore, it is advisable
@@ -50,8 +50,8 @@ or [AMD Radeon](https://www.amd.com/en/support/kb/faq/dh2-024) software.
 
 ### How to create executable app?
 
-The app can also be used without installing a Pyhton interpreter or any module. This is achieved thought the use of 
-[Pyinstaller](https://pyinstaller.org/en/stable/). You can create the executable yourself by running the 
+The app can also be used without installing a Python interpreter or any module. This is achieved thought the use of 
+[Pyinstaller](https://pyinstaller.org/en/stable/). You can create the executable file yourself by running the 
 [`main_install.py`](install/main_install.py) or simply download the 
 pre-build package from the link bellow:   
 
