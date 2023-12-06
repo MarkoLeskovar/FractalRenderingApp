@@ -9,8 +9,6 @@ from OpenGL.GL import *
 # Add python modules
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
-# Paths
-
 
 '''
 O------------------------------------------------------------------------------O
@@ -25,52 +23,42 @@ class TextRender:
 
     def __init__(self):
 
+        # Initialize empty variables
+        self.window_size = None
+        self.proj_mat = None
+        self.font_size = None
+        self.font_texture_size = None
+        self.font_texture_array = None
+        self.characters = {}
+
         # Determine maximum number of instances from maximum uniform block size
         self.max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
 
-        # Read shader source code
-        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.frag'))
-        # Dynamically modify the shader source code before compilation
-        vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
-        fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
-        # Create a shader program
-        self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
-        glUseProgram(self.shader_program)
-
-        # Disable byte-alignment restriction
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-
-        # Get uniform locations
-        self.uniform_locations = get_uniform_locations(self.shader_program, ['proj_mat', 'color'])
+        # Create shader program
+        self._set_shader_program()
+        self._set_uniform_locations()
 
         # Set buffers
         self._set_vertex_buffer()
         self._set_trans_mat_buffer()
         self._set_char_id_buffer()
 
-        # Initialize empty variables
-        self.characters = {}
-        self.font_texture_array = None
-
 
     # O------------------------------------------------------------------------------O
     # | PUBLIC - TEXT MANIPULATION FUNCTIONS                                         |
     # O------------------------------------------------------------------------------O
 
-    def SetWindowSize(self, size):
+    def set_window_size(self, size):
         self.window_size = np.asarray(size).astype('int')
         self.proj_mat = ortho_transform_mat(0, self.window_size[0], 0, self.window_size[1], -1, 1)
 
 
-    def SetFont(self, font_type, font_size):
+    def set_font(self, font_type, font_size):
+        num_ASCII_char = 256
         self.font_size = int(font_size)
 
-        # Make the texture a bit bigger than font size just in case
-        self.font_texture_size = int(1.2 * font_size)
-
-        # Number of ASCII characters
-        num_ASCII_char = 256
+        # Disable byte-alignment restriction
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
         # Load freetype characters
         face = freetype.Face(font_type)
@@ -82,6 +70,7 @@ class TextRender:
             glDeleteTextures(1, [self.font_texture_array])
 
         # Generate texture array
+        self.font_texture_size = int(1.2 * font_size)  # A bit bigger just in case
         self.font_texture_array = glGenTextures(1)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D_ARRAY, self.font_texture_array)
@@ -108,7 +97,7 @@ class TextRender:
             self.characters[chr(i)] = CharacterSlot(i, face.glyph)
 
 
-    def DrawText(self, text, x, y, scale, color):
+    def draw_text(self, text, x, y, scale, color):
         color = np.asarray(color) / 255.0
 
         # Activate text rendering
@@ -136,7 +125,7 @@ class TextRender:
             ch = self.characters[c]
 
             # Check if we have a new line character
-            if (c == '\n'):
+            if c == '\n':
                 x = x_start
                 y -= self.font_size * scale
 
@@ -161,7 +150,7 @@ class TextRender:
                 instance_id += 1
 
                 # Intermediate draw call
-                if (instance_id == self.max_instances):
+                if instance_id == self.max_instances:
                     self._draw_call(instance_id)
                     instance_id = 0
 
@@ -172,16 +161,33 @@ class TextRender:
         glDisable(GL_BLEND)
 
 
-    def Delete(self):
+    def delete(self):
         glDeleteBuffers(3, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer])
         glDeleteVertexArrays(1, [self.texture_vao])
-        glDeleteTextures(1, [self.font_texture_array])
+        if self.font_texture_array is not None:
+            glDeleteTextures(1, [self.font_texture_array])
         glDeleteProgram(self.shader_program)
 
 
     # O------------------------------------------------------------------------------O
     # | PRIVATE - OPENGL SET FUNCTIONS                                               |
     # O------------------------------------------------------------------------------O
+
+    def _set_shader_program(self):
+        # Read shader source code
+        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.frag'))
+        # Dynamically modify the shader source code before compilation
+        vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
+        fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
+        # Create a shader program
+        self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
+        glUseProgram(self.shader_program)
+
+
+    def _set_uniform_locations(self):
+        self.uniform_locations = get_uniform_locations(self.shader_program, ['proj_mat', 'color'])
+
 
     def _set_vertex_buffer(self):
         # Initialize the data

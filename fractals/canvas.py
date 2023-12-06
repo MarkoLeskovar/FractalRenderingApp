@@ -12,23 +12,20 @@ class Canvas:
     def __init__(self, size=(400, 300), range_x=(-1, 1), scale_min=0.5, scale_max=1.0e15, scale_step=0.02):
         self.size = np.asarray(size).astype('int')
         self.range_x_default = np.asarray(range_x).astype('float')
-
         # Scaling settings
         self.scale_rel_min = float(scale_min)
         self.scale_rel_max = float(scale_max)
         self.scale_abs_step = float(scale_step)
-
         # Default shift, scale and range variables
-        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
+        self.shift_default, self.scale_abs_default = self.get_shift_and_scale(self.range_x_default, (0.0, 0.0))
         self.shift = self.shift_default.copy()
         self.scale_abs = self.scale_abs_default
-        self.range_x, self.range_y = self.GetRangeXY()
-
+        self.range_x, self.range_y = self.get_range_xy()
         # Initialize mouse position
         self.mouse_pos = np.asarray([0, 0], dtype='float')
         self.mouse_pos_previous = self.mouse_pos.copy()
 
-    def GetShiftAndScale(self, range_x, range_y):
+    def get_shift_and_scale(self, range_x, range_y):
         # Compute the scaling factor
         size_x = range_x[1] - range_x[0]
         size_y = range_y[1] - range_y[0]
@@ -43,85 +40,84 @@ class Canvas:
         # Return results
         return shift, scale
 
-    def GetRangeXY(self):
-        TL_w = self.S2W(np.asarray([0.0, 0.0]))
-        BR_W = self.S2W(np.asarray(self.size))
+    def get_range_xy(self):
+        TL_w = self.s2w(np.asarray([0.0, 0.0]))
+        BR_W = self.s2w(np.asarray(self.size))
         range_x = np.asarray([TL_w[0], BR_W[0]])
         range_y = np.asarray([BR_W[1], TL_w[1]])
         return range_x, range_y
 
-    def ResetShiftAndScale(self):
+    def reset_shift_and_scale(self):
         self.shift = self.shift_default.copy()
         self.scale_abs = self.scale_abs_default
-        self.range_x, self.range_y = self.GetRangeXY()
+        self.range_x, self.range_y = self.get_range_xy()
 
-    def Resize(self, size):
-        range_x_previous, range_y_previous = self.GetRangeXY()
+    def resize(self, size):
+        range_x_previous, range_y_previous = self.get_range_xy()
         self.size = np.asarray(size).astype('int')
-        self.shift_default, self.scale_abs_default = self.GetShiftAndScale(self.range_x_default, (0.0, 0.0))
-        self.shift, self.scale_abs = self.GetShiftAndScale(range_x_previous, range_y_previous)
-        self.range_x, self.range_y = self.GetRangeXY()
+        self.shift_default, self.scale_abs_default = self.get_shift_and_scale(self.range_x_default, (0.0, 0.0))
+        self.shift, self.scale_abs = self.get_shift_and_scale(range_x_previous, range_y_previous)
+        self.range_x, self.range_y = self.get_range_xy()
 
-    def UpdateShift(self):
+    def update_shift(self):
         delta_shift = self.mouse_pos - self.mouse_pos_previous
         self.shift += delta_shift
-        self.range_x, self.range_y = self.GetRangeXY()
+        self.range_x, self.range_y = self.get_range_xy()
 
-    def ScaleIncrease(self, scale_step):
-        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
+    def increase_scale(self, scale_step):
+        temp_MP_w_start = self.s2w(self.mouse_pos)  # Starting position for the mouse
         self.scale_abs *= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
         if (self.scale_abs / self.scale_abs_default) > self.scale_rel_max:
             self.scale_abs = self.scale_rel_max * self.scale_abs_default  # Max zoom
-        self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
-        self.range_x, self.range_y = self.GetRangeXY()
+        self.shift += self.mouse_pos - self.w2s(temp_MP_w_start)  # Correct position by panning
+        self.range_x, self.range_y = self.get_range_xy()
 
-    def ScaleDecrease(self, scale_step):
-        temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
+    def decrease_scale(self, scale_step):
+        temp_MP_w_start = self.s2w(self.mouse_pos)  # Starting position for the mouse
         self.scale_abs /= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
         if (self.scale_abs / self.scale_abs_default) < self.scale_rel_min:
             self.scale_abs = self.scale_rel_min * self.scale_abs_default  # Min zoom
-        self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
-        self.range_x, self.range_y = self.GetRangeXY()
+        self.shift += self.mouse_pos - self.w2s(temp_MP_w_start)  # Correct position by panning
+        self.range_x, self.range_y = self.get_range_xy()
 
-    def SetMousePos(self, pos):
+    def set_mouse_pos(self, pos):
         self.mouse_pos = np.asarray(pos).astype('float')
 
-    def UpdateMousePosPrevious(self):
+    def update_mouse_pos_previous(self):
         self.mouse_pos_previous = self.mouse_pos.copy()
-
 
     # O------------------------------------------------------------------------------O
     # | SCREEN-TO-WORLD & WORLD-TO-SCREEN TRANSFORMATIONS                            |
     # O------------------------------------------------------------------------------O
 
-    def S2W(self, points):
+    def s2w(self, points):
         points = np.asarray(points)
         output_points = np.empty(points.shape, dtype='float')
         output_points[0] = (points[0] - self.shift[0]) / self.scale_abs
         output_points[1] = (self.size[1] + self.shift[1] - points[1]) / self.scale_abs
         return output_points
 
-    def W2S(self, points):
+    def w2s(self, points):
         points = np.asarray(points)
         output_points = np.empty(points.shape, dtype='float')
         output_points[0] = self.shift[0] + points[0] * self.scale_abs
         output_points[1] = self.size[1] + self.shift[1] - points[1] * self.scale_abs
         return output_points
 
-    def S2GL(self, points):
+    def s2gl(self, points):
         output_points = np.asarray(points).astype('float')
         output_points = (2.0 * (output_points.T / self.size) - 1.0).T
         output_points[1] *= -1.0
         return output_points
 
-    def GL2S(self, points):
+    def gl2s(self, points):
         output_points = np.asarray(points).astype('float')
         output_points[1] *= -1.0
         output_points = (0.5 * (output_points.T + 1.0) * self.size).T
         return output_points
 
-    def W2GL(self, points):
-        return self.S2GL(self.W2S(points))
+    def w2gl(self, points):
+        return self.s2gl(self.w2s(points))
 
-    def GL2W(self, points):
-        return self.S2W(self.GL2S(points))
+    def gl2w(self, points):
+        return self.s2w(self.gl2s(points))

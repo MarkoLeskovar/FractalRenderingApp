@@ -32,11 +32,11 @@ class FractalRenderingApp:
     def __init__(self, app_config=None, fractal_config=None, controls_config=None, output_dir=None, cmaps=None):
 
         # Set app configuration variables
-        self.app_cnfg = self.set_default_if_none(DEFAULT_APP_CONFIG, app_config,)
-        self.controls_cnfg = self.set_default_if_none(DEFAULT_CONTROLS_CONFIG, controls_config)
-        self.fractal_cnfg = self.set_default_if_none(DEFAULT_FRACTAL_CONFIG, fractal_config)
-        self.output_dir = self.set_default_if_none(DEFAULT_OUTPUT_DIR, output_dir)
-        self.cmaps = self.set_default_if_none(DEFAULT_CMAPS, cmaps)
+        self.app_cnfg = set_default_if_none(DEFAULT_APP_CONFIG, app_config, )
+        self.controls_cnfg = set_default_if_none(DEFAULT_CONTROLS_CONFIG, controls_config)
+        self.fractal_cnfg = set_default_if_none(DEFAULT_FRACTAL_CONFIG, fractal_config)
+        self.output_dir = set_default_if_none(DEFAULT_OUTPUT_DIR, output_dir)
+        self.cmaps = set_default_if_none(DEFAULT_CMAPS, cmaps)
         self.cmap_id = 0
 
         # Fractal interation settings
@@ -53,7 +53,7 @@ class FractalRenderingApp:
         # Create GLFW window and set the icon
         self.window_vsync = True
         window_size = (int(self.app_cnfg['WIN_WIDTH']), int(self.app_cnfg['WIN_HEIGHT']))
-        self.window = self.create_main_window(window_size, self.window_vsync)
+        self.window = self._create_main_window(window_size, self.window_vsync)
         icon = Image.open(os.path.join(self.path_to_assets, 'mandelbrot.png')).resize((256, 256))
         glfw.set_window_icon(self.window, 1, icon)
 
@@ -65,7 +65,7 @@ class FractalRenderingApp:
         # Create a render canvas
         range_x = (float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN']),
                    float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX']))
-        self.canvas = RenderCanvas(self.render_size, range_x)
+        self.render_canvas = RenderCanvas(self.render_size, range_x)
 
         # Create GLFW clock
         self.clock = ClockGLFW()
@@ -74,11 +74,11 @@ class FractalRenderingApp:
         self.text_size = int(self.app_cnfg['FONT_SIZE'])
         self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
         self.text_render = TextRender()
-        self.text_render.SetFont(self.text_file, self.text_size * self.pix_scale)
-        self.text_render.SetWindowSize(self.window_size)
+        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.text_render.set_window_size(self.window_size)
 
         # Set GLFW callback functions
-        self.set_callback_functions_glfw()
+        self._set_callback_functions_glfw()
 
         # Read shader source code
         base_vert_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_base.vert'))
@@ -96,13 +96,13 @@ class FractalRenderingApp:
             self.program_color, ['num_iter'])
 
         # Create framebuffers
-        self.canvas.AddFramebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
-        self.canvas.AddFramebuffer('COLOR', GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
+        self.render_canvas.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        self.render_canvas.add_framebuffer('COLOR', GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
         # Create vertices for textured polygon
         # points = np.asarray([[0, 0], [0, 600], [600, 600], [600, 400], [800, 400], [800, 0]])
-        points = np.asarray([[0, 0], [0, self.canvas.size[1]], self.canvas.size, [self.canvas.size[0], 0]])
-        textured_polygon_vertices = self.create_textured_polygon_vertices(points, self.canvas)
+        points = np.asarray([[0, 0], [0, self.render_canvas.size[1]], self.render_canvas.size, [self.render_canvas.size[0], 0]])
+        textured_polygon_vertices = self._create_textured_polygon_vertices(points, self.render_canvas)
         self.num_polygon_vertices = textured_polygon_vertices.shape[0]
 
         # Polygon VBO and VAO
@@ -118,7 +118,7 @@ class FractalRenderingApp:
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
 
         # Create buffers
-        self.set_cmap_buffer(self.cmaps[self.cmap_id])
+        self._set_cmap_buffer(self.cmaps[self.cmap_id])
 
 
     def Run(self):
@@ -127,17 +127,17 @@ class FractalRenderingApp:
         while self.window_open:
             # Draw call
             if not self.window_minimized:
-                self.draw_call()
+                self._draw_call()
             # Event handling
             glfw.poll_events()
-            self.process_hold_keys()
-            self.canvas.UpdateMousePosPrevious()
+            self._process_hold_keys()
+            self.render_canvas.update_mouse_pos_previous()
 
 
     def Close(self):
         # Delete custom classes
-        self.canvas.Delete()
-        self.text_render.Delete()
+        self.render_canvas.delete()
+        self.text_render.delete()
         # Delete OpenGL buffers
         glDeleteBuffers(2, [self.polygon_buffer, self.cmap_buffer])
         glDeleteVertexArrays(1, [self.polygon_vao])
@@ -157,7 +157,7 @@ class FractalRenderingApp:
     # | GLFW EVENT HANDLING - CALLBACK FUNCTIONS AND USER INPUT                      |
     # O------------------------------------------------------------------------------O
 
-    def set_callback_functions_glfw(self):
+    def _set_callback_functions_glfw(self):
         # Toggle flags
         self.window_open = True
         self.window_minimized = False
@@ -167,50 +167,50 @@ class FractalRenderingApp:
         self.mouse_left_button_hold = False
         self.show_info_text = True
         # Window callback functions
-        glfw.set_window_close_callback(self.window, self.callback_window_close)
-        glfw.set_window_size_callback(self.window, self.callback_window_resize)
-        glfw.set_window_iconify_callback(self.window, self.callback_window_minimized)
-        glfw.set_window_content_scale_callback(self.window, self.callback_content_scale)
+        glfw.set_window_close_callback(self.window, self._callback_window_close)
+        glfw.set_window_size_callback(self.window, self._callback_window_resize)
+        glfw.set_window_iconify_callback(self.window, self._callback_window_minimized)
+        glfw.set_window_content_scale_callback(self.window, self._callback_content_scale)
         # User input callback functions
-        glfw.set_cursor_pos_callback(self.window, self.callback_cursor_position)
-        glfw.set_mouse_button_callback(self.window, self.callback_mouse_button)
-        glfw.set_scroll_callback(self.window, self.callback_mouse_scroll)
-        glfw.set_key_callback(self.window, self.callback_keyboad_button)
+        glfw.set_cursor_pos_callback(self.window, self._callback_cursor_position)
+        glfw.set_mouse_button_callback(self.window, self._callback_mouse_button)
+        glfw.set_scroll_callback(self.window, self._callback_mouse_scroll)
+        glfw.set_key_callback(self.window, self._callback_keyboad_button)
 
 
-    def callback_window_close(self, window):
+    def _callback_window_close(self, window):
         self.window_open = False
 
 
-    def callback_window_minimized(self, window, iconified):
+    def _callback_window_minimized(self, window, iconified):
         self.window_minimized = bool(iconified)
 
 
-    def callback_window_resize(self, window, width, height):
+    def _callback_window_resize(self, window, width, height):
         if not self.window_minimized:
             temp_size = glfw.get_framebuffer_size(self.window)
-            self.update_window_size(temp_size, self.pix_scale)
-            self.text_render.SetWindowSize((width, height))
-            self.draw_call()
+            self._update_window_size(temp_size, self.pix_scale)
+            self.text_render.set_window_size((width, height))
+            self._draw_call()
 
 
-    def callback_content_scale(self, window, scale_x, scale_y):
-        self.update_window_size(self.window_size, scale_x)
-        self.text_render.SetFont(self.text_file, self.text_size * self.pix_scale)
-        self.draw_call()
+    def _callback_content_scale(self, window, scale_x, scale_y):
+        self._update_window_size(self.window_size, scale_x)
+        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
+        self._draw_call()
 
 
-    def callback_keyboad_button(self, window, key, scancode, action, mods):
+    def _callback_keyboad_button(self, window, key, scancode, action, mods):
         # Exit the app
-        if (key == getattr(glfw, self.controls_cnfg['EXIT']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['EXIT']) and action == glfw.PRESS:
             self.window_open = False
 
         # Show into text
-        if (key == getattr(glfw, self.controls_cnfg['INFO']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['INFO']) and action == glfw.PRESS:
             self.show_info_text = not self.show_info_text
 
         # Toggle fullscreen
-        if (key == getattr(glfw, self.controls_cnfg['FULLSCREEN']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['FULLSCREEN']) and action == glfw.PRESS:
             # Make fullscreen
             if not self.window_fullscreen:
                 self.window_fullscreen = True
@@ -227,66 +227,66 @@ class FractalRenderingApp:
                                         self.window_size_previous[0], self.window_size_previous[1], glfw.DONT_CARE)
 
         # Increase number of iterations
-        if (key == getattr(glfw, self.controls_cnfg['ITER_INCREASE']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['ITER_INCREASE']) and action == glfw.PRESS:
             self.num_iter = min(self.num_iter + self.num_iter_step, self.num_iter_max)
 
 
         # Decrease number of iterations
-        if (key == getattr(glfw, self.controls_cnfg['ITER_DECREASE']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['ITER_DECREASE']) and action == glfw.PRESS:
             self.num_iter = max(self.num_iter - self.num_iter_step, self.num_iter_min)
 
 
         # Reset shift and scale
-        if (key == getattr(glfw, self.controls_cnfg['RESET_VIEW']) and action == glfw.PRESS):
-            self.canvas.ResetShiftAndScale()
+        if key == getattr(glfw, self.controls_cnfg['RESET_VIEW']) and action == glfw.PRESS:
+            self.render_canvas.reset_shift_and_scale()
             # Also reset the number of fractals iterations
             self.num_iter = self.num_iter_min
 
         # Increase pixel scale
-        if (key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS:
             temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
-            self.update_window_size(self.window_size, temp_pix_scale)
+            self._update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
-        if (key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS:
             temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
-            self.update_window_size(self.window_size, temp_pix_scale)
+            self._update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
-        if (key == getattr(glfw, self.controls_cnfg['ZOOM_IN'])):
+        if key == getattr(glfw, self.controls_cnfg['ZOOM_IN']):
             if (action == glfw.PRESS):
                 self.keyboard_up_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_up_key_hold = False
 
         # Hold zoom-out
-        if (key == getattr(glfw, self.controls_cnfg['ZOOM_OUT'])):
+        if key == getattr(glfw, self.controls_cnfg['ZOOM_OUT']):
             if (action == glfw.PRESS):
                 self.keyboard_down_key_hold = True
             elif (action == glfw.RELEASE):
                 self.keyboard_down_key_hold = False
 
         # Next colormap
-        if (key == getattr(glfw, self.controls_cnfg['CMAP_NEXT']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['CMAP_NEXT']) and action == glfw.PRESS:
             self.cmap_id += 1
             if self.cmap_id >= len(self.cmaps):
                 self.cmap_id = 0
-            self.update_cmap_buffer(self.cmaps[self.cmap_id])
+            self._update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Previous colormap
-        if (key == getattr(glfw, self.controls_cnfg['CMAP_PREV']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['CMAP_PREV']) and action == glfw.PRESS:
             self.cmap_id -= 1
             if self.cmap_id < 0:
                 self.cmap_id = len(self.cmaps) - 1
-            self.update_cmap_buffer(self.cmaps[self.cmap_id])
+            self._update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Toggle vsync for uncapped frame rate
-        if (key == getattr(glfw, self.controls_cnfg['VSYNC']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['VSYNC']) and action == glfw.PRESS:
             self.window_vsync = not self.window_vsync
             glfw.swap_interval(int(self.window_vsync))
 
         # Save a screenshot
-        if (key == getattr(glfw, self.controls_cnfg['SCREENSHOT']) and action == glfw.PRESS):
+        if key == getattr(glfw, self.controls_cnfg['SCREENSHOT']) and action == glfw.PRESS:
             os.makedirs(self.output_dir, exist_ok=True)
             # Get current screenshot counter
             counter = 1
@@ -295,74 +295,68 @@ class FractalRenderingApp:
                 temp_list = sorted([int(x.split('.')[0]) for x in output_files])
                 counter = temp_list[-1] + 1
             # Read pixels and save the image
-            output_image = self.read_pixels(self.canvas.framebuffers['COLOR'])
+            output_image = self._read_color_framebuffer(self.render_canvas.framebuffers['COLOR'])
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
 
-    def callback_mouse_button(self, window, button, action, mod):
+    def _callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
-        if (button == getattr(glfw, self.controls_cnfg['SHIFT_VIEW'])):
-            if (action == glfw.PRESS):
+        if button == getattr(glfw, self.controls_cnfg['SHIFT_VIEW']):
+            if action == glfw.PRESS:
                 self.mouse_left_button_hold = True
-            elif (action == glfw.RELEASE):
+            elif action == glfw.RELEASE:
                 self.mouse_left_button_hold = False
 
 
-    def callback_mouse_scroll(self, window, x_offset, y_offset):
+    def _callback_mouse_scroll(self, window, x_offset, y_offset):
         # Zoom-in
-        if (y_offset > 0):
-            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
-            self.canvas.ScaleIncrease(temp_scale_step)
+        if y_offset > 0:
+            temp_scale_step = 5.0 * self.render_canvas.scale_abs_step * abs(y_offset)
+            self.render_canvas.increase_scale(temp_scale_step)
         # Zoom-out
-        if (y_offset < 0):
-            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
-            self.canvas.ScaleDecrease(temp_scale_step)
+        if y_offset < 0:
+            temp_scale_step = 5.0 * self.render_canvas.scale_abs_step * abs(y_offset)
+            self.render_canvas.decrease_scale(temp_scale_step)
 
 
-    def callback_cursor_position(self, window, x_pos, y_pos):
+    def _callback_cursor_position(self, window, x_pos, y_pos):
         temp_mp_s = np.asarray([x_pos, y_pos]) / self.pix_scale
-        self.canvas.SetMousePos(temp_mp_s)
+        self.render_canvas.set_mouse_pos(temp_mp_s)
 
 
-    def process_hold_keys(self):
+    def _process_hold_keys(self):
         # Pan screen
         if self.mouse_left_button_hold:
-            self.canvas.UpdateShift()
+            self.render_canvas.update_shift()
         # Zoom-in
         if self.keyboard_up_key_hold:
-            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
-            self.canvas.ScaleIncrease(temp_scale_step)
+            temp_scale_step = self.render_canvas.scale_abs_step * self.clock.frame_time * 60.0
+            self.render_canvas.increase_scale(temp_scale_step)
         # Zoom-out
         if self.keyboard_down_key_hold:
-            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
-            self.canvas.ScaleDecrease(temp_scale_step)
+            temp_scale_step = self.render_canvas.scale_abs_step * self.clock.frame_time * 60.0
+            self.render_canvas.decrease_scale(temp_scale_step)
 
 
-    def update_window_size(self, size, pix_scale):
+    def _update_window_size(self, size, pix_scale):
         # Update mouse position
-        temp_mp_s = self.canvas.mouse_pos * (self.pix_scale / pix_scale)
-        self.canvas.SetMousePos(temp_mp_s)
+        temp_mp_s = self.render_canvas.mouse_pos * (self.pix_scale / pix_scale)
+        self.render_canvas.set_mouse_pos(temp_mp_s)
         # Update window size
         self.window_size = np.asarray(size).astype('int')
         self.pix_scale = float(pix_scale)
         # Update app variables
         self.render_size = (self.window_size / self.pix_scale).astype('int')
-        self.canvas.Resize(self.render_size)
+        self.render_canvas.resize(self.render_size)
 
-
-    def set_default_if_none(self, default_value, value=None):
-        output_value = default_value
-        if value is not None:
-            output_value = value
-        return output_value
 
 
     # O------------------------------------------------------------------------------O
     # | OPENGL FUNCTIONS                                                             |
     # O------------------------------------------------------------------------------O
 
-    def create_main_window(self, size, vsync=True):
+    def _create_main_window(self, size, vsync=True):
         size = np.asarray(size).astype('int')
         # Initialize GLFW
         glfw.init()
@@ -382,18 +376,18 @@ class FractalRenderingApp:
         return window
 
 
-    def create_textured_polygon_vertices(self, points_S, canvas):
+    def _create_textured_polygon_vertices(self, points_S, canvas):
         # Polygon triangulation
         triangles = np.asarray(tripy.earclip(points_S))
         triangles = np.squeeze(triangles.reshape((1, -1, 2)))
         # Create texture coordinates
-        triangles_gl = canvas.S2GL(triangles.T).T
+        triangles_gl = canvas.s2gl(triangles.T).T
         triangles_texture = triangles / canvas.size
         triangles_texture[:, 1] = 1.0 - triangles_texture[:, 1]  # Flip texture along y-axis
         return np.hstack((triangles_gl, triangles_texture)).astype('float32')
 
 
-    def set_cmap_buffer(self, cmap_name):
+    def _set_cmap_buffer(self, cmap_name):
         cmap = GetColormapArray(cmap_name).astype('float32')
         # Create a buffer
         self.cmap_buffer = glGenBuffers(1)
@@ -404,26 +398,26 @@ class FractalRenderingApp:
         glUniformBlockBinding(self.program_color, cmap_buffer_block_index, 0)
 
 
-    def update_cmap_buffer(self, cmap_name):
+    def _update_cmap_buffer(self, cmap_name):
         cmap_array = GetColormapArray(cmap_name).astype('float32')
         # Update OpenGL framebuffers
         glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
         glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
 
 
-    def read_pixels(self, framebuffer):
+    def _read_color_framebuffer(self, framebuffer):
         # Initialize output image
         image_array = np.empty(shape=(framebuffer.size[0] * framebuffer[1] * 3), dtype='uint8')
         # Read pixels from the selected framebuffer
         glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer.fbo)
         glReadPixels(0, 0, framebuffer.size[0], framebuffer.size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
-        # Reshape and save the image
+        # Return reshaped image
         return image_array.reshape((framebuffer.size[1], framebuffer.size[0], 3))
 
 
-    def get_info_text(self):
+    def _get_info_text(self):
         text = (f'CMAP = {self.cmaps[self.cmap_id]}\n'
-                f'ZOOM = {(self.canvas.scale_abs / self.canvas.scale_abs_default):.2E}\n'
+                f'ZOOM = {(self.render_canvas.scale_abs / self.render_canvas.scale_abs_default):.2E}\n'
                 f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
                 f'RENDER = {self.render_size[0]}x{self.render_size[1]}\n'
                 f'SCALE = {self.pix_scale}\n'
@@ -432,30 +426,30 @@ class FractalRenderingApp:
         return text
 
 
-    def draw_call(self):
+    def _draw_call(self):
 
         # 01. COMPUTE MANDELBROT ITERATIONS
-        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['ITER'].fbo)
+        glViewport(0, 0, self.render_canvas.size[0], self.render_canvas.size[1])
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.render_canvas.framebuffers['ITER'].fbo)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_mandelbrot)
         # Send uniforms to the GPU
-        glUniform2dv(self.uniform_locations_mandelbrot['range_x'], 1, self.canvas.range_x.astype('float64'))
-        glUniform2dv(self.uniform_locations_mandelbrot['range_y'], 1, self.canvas.range_y.astype('float64'))
-        glUniform1d(self.uniform_locations_mandelbrot['pix_size'], 1.0 / self.canvas.scale_abs)
+        glUniform2dv(self.uniform_locations_mandelbrot['range_x'], 1, self.render_canvas.range_x.astype('float64'))
+        glUniform2dv(self.uniform_locations_mandelbrot['range_y'], 1, self.render_canvas.range_y.astype('float64'))
+        glUniform1d(self.uniform_locations_mandelbrot['pix_size'], 1.0 / self.render_canvas.scale_abs)
         glUniform1i(self.uniform_locations_mandelbrot['num_iter'], self.num_iter)
         # Draw geometry
         glBindVertexArray(self.polygon_vao)
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 02. FRACTAL COLORING
-        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
+        glViewport(0, 0, self.render_canvas.size[0], self.render_canvas.size[1])
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.render_canvas.framebuffers['COLOR'].fbo)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_color)
         # Bind resources
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.cmap_buffer)
-        glBindTexture(GL_TEXTURE_2D, self.canvas.framebuffers['ITER'].tex)
+        glBindTexture(GL_TEXTURE_2D, self.render_canvas.framebuffers['ITER'].tex)
         glActiveTexture(GL_TEXTURE0)
         # Send uniforms to the GPU
         glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
@@ -464,16 +458,16 @@ class FractalRenderingApp:
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 03. COPY FRAMEBUFFERS
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.render_canvas.framebuffers['COLOR'].fbo)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
-        glBlitFramebuffer(0, 0, self.canvas.size[0], self.canvas.size[1],
+        glBlitFramebuffer(0, 0, self.render_canvas.size[0], self.render_canvas.size[1],
                           0, 0, self.window_size[0], self.window_size[1],
                           GL_COLOR_BUFFER_BIT, GL_NEAREST)
 
         # 04. RENDER TEXT TO WINDOW
         if self.show_info_text:
             glViewport(0, 0, self.window_size[0], self.window_size[1])
-            self.text_render.DrawText(self.get_info_text(), 10, 8, 1.0, (255, 255, 255))
+            self.text_render.draw_text(self._get_info_text(), 10, 8, 1.0, (255, 255, 255))
 
         # 05. SWAP BUFFERS AND UPDATE TIMINGS
         glfw.swap_buffers(self.window)
@@ -485,6 +479,13 @@ O------------------------------------------------------------------------------O
 | AUXILIARY FUNCTIONS                                                          |
 O------------------------------------------------------------------------------O
 '''
+
+def set_default_if_none(default_value, value=None):
+    output_value = default_value
+    if value is not None:
+        output_value = value
+    return output_value
+
 
 def glfw_get_current_window_monitor(glfw_window):
     # Get all available monitors
