@@ -7,7 +7,7 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-class Canvas():
+class Canvas:
 
     def __init__(self, size=(400, 300), range_x=(-1, 1), scale_min=0.5, scale_max=1.0e15, scale_step=0.02):
         self.size = np.asarray(size).astype('int')
@@ -75,7 +75,6 @@ class Canvas():
         self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
         self.range_x, self.range_y = self.GetRangeXY()
 
-
     def ScaleDecrease(self, scale_step):
         temp_MP_w_start = self.S2W(self.mouse_pos)  # Starting position for the mouse
         self.scale_abs /= (1.0 + scale_step)  # Scale also changes "s2w" and "w2s" functions
@@ -83,7 +82,6 @@ class Canvas():
             self.scale_abs = self.scale_rel_min * self.scale_abs_default  # Min zoom
         self.shift += self.mouse_pos - self.W2S(temp_MP_w_start)  # Correct position by panning
         self.range_x, self.range_y = self.GetRangeXY()
-
 
     def SetMousePos(self, pos):
         self.mouse_pos = np.asarray(pos).astype('float')

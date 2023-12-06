@@ -9,7 +9,7 @@ import glfw.GLFW as GLFW_VAR
 from OpenGL.GL import *
 
 # Add custom modules
-from .canvas import Canvas
+from .render_canvas import RenderCanvas
 from .clock import ClockGLFW
 from .default_config import *
 from .text_render import TextRender
@@ -62,10 +62,10 @@ class FractalRenderingApp:
         self.window_size = np.asarray(glfw.get_framebuffer_size(self.window)).astype('int')
         self.render_size = (self.window_size / self.pix_scale).astype('int')
 
-        # Create a canvas
+        # Create a render canvas
         range_x = (float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN']),
                    float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX']))
-        self.canvas = Canvas(self.render_size, range_x)
+        self.canvas = RenderCanvas(self.render_size, range_x)
 
         # Create GLFW clock
         self.clock = ClockGLFW()
@@ -96,9 +96,8 @@ class FractalRenderingApp:
             self.program_color, ['num_iter'])
 
         # Create framebuffers
-        self.framebuffer_mandelbrot, self.texture_mandelbrot = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
-        self.framebuffer_color, self.texture_color = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
-
+        self.canvas.AddFramebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        self.canvas.AddFramebuffer('COLOR', GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
         # Create vertices for textured polygon
         # points = np.asarray([[0, 0], [0, 600], [600, 600], [600, 400], [800, 400], [800, 0]])
@@ -136,13 +135,12 @@ class FractalRenderingApp:
 
 
     def Close(self):
-        # Delete text renderer
+        # Delete custom classes
+        self.canvas.Delete()
         self.text_render.Delete()
         # Delete OpenGL buffers
         glDeleteBuffers(2, [self.polygon_buffer, self.cmap_buffer])
         glDeleteVertexArrays(1, [self.polygon_vao])
-        glDeleteFramebuffers(2, [self.framebuffer_mandelbrot, self.framebuffer_color])
-        glDeleteTextures(2, [self.texture_mandelbrot, self.texture_color])
         glDeleteProgram(self.program_mandelbrot)
         glDeleteProgram(self.program_color)
         # Terminate GLFW
@@ -297,7 +295,7 @@ class FractalRenderingApp:
                 temp_list = sorted([int(x.split('.')[0]) for x in output_files])
                 counter = temp_list[-1] + 1
             # Read pixels and save the image
-            output_image = self.read_pixels(self.framebuffer_color, self.render_size)
+            output_image = self.read_pixels(self.canvas.framebuffers['COLOR'])
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
@@ -351,11 +349,6 @@ class FractalRenderingApp:
         # Update app variables
         self.render_size = (self.window_size / self.pix_scale).astype('int')
         self.canvas.Resize(self.render_size)
-        # Update OpenGL framebuffers
-        glDeleteFramebuffers(2, [self.framebuffer_mandelbrot, self.framebuffer_color])
-        glDeleteTextures(2, [self.texture_mandelbrot, self.texture_color])
-        self.framebuffer_mandelbrot, self.texture_mandelbrot = self.create_framebuffer(self.render_size, GL_R32F, GL_RED, GL_FLOAT)
-        self.framebuffer_color, self.texture_color = self.create_framebuffer(self.render_size, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
 
     def set_default_if_none(self, default_value, value=None):
@@ -400,23 +393,6 @@ class FractalRenderingApp:
         return np.hstack((triangles_gl, triangles_texture)).astype('float32')
 
 
-    def create_framebuffer(self, size, gl_internalformat, gl_format, gl_type):
-        # Create a frame-buffer object
-        framebuffer = glGenFramebuffers(1)
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer)
-        # Create a texture for a frame-buffer
-        texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, gl_internalformat, size[0], size[1], 0, gl_format, gl_type, None)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
-        # Return results
-        return framebuffer, texture
-
-
     def set_cmap_buffer(self, cmap_name):
         cmap = GetColormapArray(cmap_name).astype('float32')
         # Create a buffer
@@ -435,14 +411,14 @@ class FractalRenderingApp:
         glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
 
 
-    def read_pixels(self, gl_framebuffer, framebuffer_size):
+    def read_pixels(self, framebuffer):
         # Initialize output image
-        image_array = np.empty(shape=(framebuffer_size[0] * framebuffer_size[1] * 3), dtype='uint8')
+        image_array = np.empty(shape=(framebuffer.size[0] * framebuffer[1] * 3), dtype='uint8')
         # Read pixels from the selected framebuffer
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl_framebuffer)
-        glReadPixels(0, 0, framebuffer_size[0], framebuffer_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer.fbo)
+        glReadPixels(0, 0, framebuffer.size[0], framebuffer.size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
         # Reshape and save the image
-        return image_array.reshape((framebuffer_size[1], framebuffer_size[0], 3))
+        return image_array.reshape((framebuffer.size[1], framebuffer.size[0], 3))
 
 
     def get_info_text(self):
@@ -459,8 +435,8 @@ class FractalRenderingApp:
     def draw_call(self):
 
         # 01. COMPUTE MANDELBROT ITERATIONS
-        glViewport(0, 0, self.render_size[0], self.render_size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_mandelbrot)
+        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['ITER'].fbo)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_mandelbrot)
         # Send uniforms to the GPU
@@ -473,13 +449,13 @@ class FractalRenderingApp:
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 02. FRACTAL COLORING
-        glViewport(0, 0, self.render_size[0], self.render_size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.framebuffer_color)
+        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
         glClear(GL_COLOR_BUFFER_BIT)
         glUseProgram(self.program_color)
         # Bind resources
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.cmap_buffer)
-        glBindTexture(GL_TEXTURE_2D, self.texture_mandelbrot)
+        glBindTexture(GL_TEXTURE_2D, self.canvas.framebuffers['ITER'].tex)
         glActiveTexture(GL_TEXTURE0)
         # Send uniforms to the GPU
         glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
@@ -488,9 +464,9 @@ class FractalRenderingApp:
         glDrawArrays(GL_TRIANGLES, 0, self.num_polygon_vertices)
 
         # 03. COPY FRAMEBUFFERS
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.framebuffer_color)
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
-        glBlitFramebuffer(0, 0, self.render_size[0], self.render_size[1],
+        glBlitFramebuffer(0, 0, self.canvas.size[0], self.canvas.size[1],
                           0, 0, self.window_size[0], self.window_size[1],
                           GL_COLOR_BUFFER_BIT, GL_NEAREST)
 
