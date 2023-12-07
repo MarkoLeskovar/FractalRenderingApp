@@ -20,14 +20,14 @@ class Framebuffer:
         self._set_framebuffer()
 
     def update(self):
-        self.delete()
-        self._set_framebuffer()
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0, self.gl_format, self.gl_type, None)
+        glBindFramebuffer(GL_FRAMEBUFFER, self.fbo)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.tex, 0)
 
     def delete(self):
         glDeleteFramebuffers(1, [self.fbo])
         glDeleteTextures(1, [self.tex])
-        self.fbo = None
-        self.tex = None
 
     def _set_framebuffer(self):
         # Create a framebuffer object
@@ -36,10 +36,9 @@ class Framebuffer:
         # Create a texture for a framebuffer
         self.tex = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.tex)
-        glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0, self.gl_format,
-                     self.gl_type, None)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0, self.gl_format, self.gl_type, None)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.tex, 0)
