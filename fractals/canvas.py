@@ -9,13 +9,13 @@ O------------------------------------------------------------------------------O
 
 class Canvas:
 
-    def __init__(self, size=(400, 300), range_x=(-1, 1), scale_min=0.5, scale_max=1.0e15, scale_step=0.02):
+    def __init__(self, size=(400, 300), range_x=(-1, 1), zoom_min=0.5, zoom_max=1.0e15, zoom_step=0.02):
         self.size = np.asarray(size).astype('int')
         self.range_x_default = np.asarray(range_x).astype('float')
         # Scaling settings
-        self.scale_rel_min = float(scale_min)
-        self.scale_rel_max = float(scale_max)
-        self.scale_abs_step = float(scale_step)
+        self.scale_rel_min = float(zoom_min)
+        self.scale_rel_max = float(zoom_max)
+        self.scale_abs_step = float(zoom_step)
         # Default shift, scale and range variables
         self.shift_default, self.scale_abs_default = self.get_shift_and_scale(self.range_x_default, (0.0, 0.0))
         self.shift = self.shift_default.copy()

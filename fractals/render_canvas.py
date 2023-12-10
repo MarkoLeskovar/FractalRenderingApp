@@ -22,8 +22,7 @@ O------------------------------------------------------------------------------O
 
 class RenderCanvas(Canvas):
 
-    def __init__(self, size=(400, 300), range_x=(-1, 1), scale_min=0.5, scale_max=1.0e15, scale_step=0.02):
-        super().__init__(size, range_x, scale_min, scale_max, scale_step)
+    def __init__(self, pos=(0, 0), win_size=(400, 300), range_x=(-1, 1), pix_scale=1.0, zoom_min=0.5, zoom_max=1.0e15, zoom_step=0.02):
 
         # Initialize empty variables
         self.framebuffers = {}
@@ -32,9 +31,17 @@ class RenderCanvas(Canvas):
         self.polygon_buffer = None
         self.polygon_buffer_n_indices = None
 
+        # Derived class variables
+        self.pos = np.asarray(pos).astype('int')
+        self.win_size = np.asarray(win_size).astype('int')
+        self.pix_scale = float(pix_scale)
+
+        # Initialize base class
+        size = (self.win_size / self.pix_scale).astype('int')
+        super().__init__(size, range_x, zoom_min, zoom_max, zoom_step)
+
         # Initialize a textured polygon
-        # temp_points = np.asarray([[0, 0], [0, self.size[1]], [self.size[0], self.size[1]], [self.size[0], 0]])
-        temp_points = np.asarray([[50, 50], [50, self.size[1]-50], self.size-50, [self.size[0]-50, 50]])
+        temp_points = np.asarray([[0, 0], [0, self.size[1]], self.size, [self.size[0], 0]])
         self._set_polygon_buffer(temp_points)
 
 
@@ -51,7 +58,8 @@ class RenderCanvas(Canvas):
 
 
     def _set_polygon_buffer(self, points_s):
-        self.polygon = Polygon(points_s)
+        points_gl = self.s2gl(np.asarray(points_s).T)
+        self.polygon = Polygon(points_gl.T)
         # Create polygon buffer and assign number of indices
         polygon_buffer_array = self.create_polygon_buffer_array(points_s)
         self.polygon_buffer_n_indices = polygon_buffer_array.shape[0]
@@ -69,7 +77,8 @@ class RenderCanvas(Canvas):
 
 
     def update_polygon_buffer(self, points_s):
-        self.polygon = Polygon(points_s)
+        points_gl = self.s2gl(np.asarray(points_s).T)
+        self.polygon = Polygon(points_gl.T)
         # Create polygon buffer and assign number of indices
         polygon_buffer_array = self.create_polygon_buffer_array(points_s)
         self.polygon_buffer_n_indices = polygon_buffer_array.shape[0]
@@ -91,11 +100,17 @@ class RenderCanvas(Canvas):
 
 
     def is_active(self):
-        return self.polygon.contains(Point(self.mouse_pos))
+        return self.polygon.contains(Point(self.s2gl(self.mouse_pos)))
 
 
-    def resize(self, size):
+    def resize(self, win_size, pix_scale):
+        self.win_size = np.asarray(win_size).astype('int')
+        self.pix_scale = float(pix_scale)
+        temp_mouse_w = self.s2w(self.mouse_pos)
+        # Update base class
+        size = (self.win_size / self.pix_scale).astype('int')
         super().resize(size)
+        self.mouse_pos = self.w2s(temp_mouse_w)
         # Update framebuffers
         for fbo in self.framebuffers.values():
             fbo.size = self.size
@@ -103,8 +118,13 @@ class RenderCanvas(Canvas):
 
         # # TODO : Check how the visible polygon changes depending on the window size
         # # DEBUG - Update visible polygon
-        temp_points = np.asarray([[50, 50], [50, self.size[1]-50], self.size-50, [self.size[0]-50, 50]])
-        self.update_polygon_buffer(temp_points)
+        # temp_points = np.asarray([[50, 50], [50, self.size[1]-50], self.size-50, [self.size[0]-50, 50]])
+        # self.update_polygon_buffer(temp_points)
+
+
+    def set_mouse_pos(self, mouse_pos):
+        temp_mp_s = (np.asarray(mouse_pos) - self.pos) / self.pix_scale
+        super().set_mouse_pos(temp_mp_s)
 
 
     def delete(self):
