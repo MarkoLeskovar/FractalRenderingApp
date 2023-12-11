@@ -5,6 +5,7 @@ layout(pixel_center_integer ) in vec4 gl_FragCoord;
 
 // IN - Fractal settings
 uniform double pix_size;
+uniform dvec2 mouse_pos;
 uniform dvec2 range_x;
 uniform dvec2 range_y;
 uniform int num_iter;

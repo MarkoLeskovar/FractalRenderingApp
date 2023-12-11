@@ -60,19 +60,22 @@ class FractalRenderingApp:
         glfw.set_window_icon(self.window, 1, icon)
 
         # Get the actual window size
-        self.pix_scale = float(glfw.get_window_content_scale(self.window)[0])
+        self.content_scale = float(glfw.get_window_content_scale(self.window)[0])
         self.window_size = np.asarray(glfw.get_framebuffer_size(self.window)).astype('int')
-        # self.render_size = (self.window_size / self.pix_scale).astype('int')
+        self.render_size = (self.window_size / self.content_scale).astype('int')
 
         # Create a render canvas
         range_x = (float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN']),
                    float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX']))
 
         # TODO : DEBUG
-        self.canvas_offset = 100
-        self.canvas_pos = np.asarray([self.canvas_offset, self.canvas_offset])
-        self.canvas_size = (self.window_size - 2 * self.canvas_offset).astype('int')
-        self.canvas = RenderCanvas(self.canvas_pos, self.canvas_size, range_x, self.pix_scale)
+        self.canvas_pos = np.asarray([50, 50])
+        self.canvas_size = (np.asarray([0.5 * self.window_size[0], self.window_size[1]]) - 2 * self.canvas_pos).astype('int')
+        self.canvas = RenderCanvas(self.canvas_pos, self.canvas_size, self.content_scale, range_x)
+
+        # Create framebuffers
+        self.canvas.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        self.canvas.add_framebuffer('COLOR', GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
         # Create GLFW clock
         self.clock = ClockGLFW()
@@ -81,7 +84,7 @@ class FractalRenderingApp:
         self.text_size = int(self.app_cnfg['FONT_SIZE'])
         self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
         self.text_render = TextRender()
-        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.text_render.set_font(self.text_file, self.text_size * self.content_scale)
         self.text_render.set_window_size(self.window_size)
 
         # Set GLFW callback functions
@@ -97,32 +100,28 @@ class FractalRenderingApp:
 
         # Get uniform locations
         self.uniform_locations_mandelbrot = get_uniform_locations(
-            self.program_mandelbrot, ['pix_size', 'range_x', 'range_y', 'num_iter'])
+            self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
         self.uniform_locations_color = get_uniform_locations(
             self.program_color, ['num_iter'])
-
-        # Create framebuffers
-        self.canvas.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
-        self.canvas.add_framebuffer('COLOR', GL_RGB, GL_RGB, GL_UNSIGNED_BYTE)
 
         # Create buffers
         self._set_cmap_buffer(self.cmaps[self.cmap_id])
 
 
-    def Run(self):
+    def run(self):
         # Main app loop
         self.window_open = True
         while self.window_open:
             # Draw call
             if not self.window_minimized:
-                self._draw_call()
+                self._render_call()
             # Event handling
             glfw.poll_events()
             self._process_hold_keys()
-            self.canvas.update_mouse_pos_previous()
+            self.canvas.update_mouse_pos()
 
 
-    def Close(self):
+    def close(self):
         # Delete custom classes
         self.canvas.delete()
         self.text_render.delete()
@@ -136,7 +135,7 @@ class FractalRenderingApp:
 
 
     @classmethod
-    def SetPathToAssets(cls, path):
+    def set_path_to_assets(cls, path):
         cls.path_to_assets = path
 
 
@@ -176,15 +175,15 @@ class FractalRenderingApp:
     def _callback_window_resize(self, window, width, height):
         if not self.window_minimized:
             temp_size = glfw.get_framebuffer_size(self.window)
-            self._update_window_size(temp_size, self.pix_scale)
+            self._update_window_size(temp_size, self.content_scale)
             self.text_render.set_window_size((width, height))
-            self._draw_call()
+            self._render_call()
 
 
     def _callback_content_scale(self, window, scale_x, scale_y):
         self._update_window_size(self.window_size, scale_x)
-        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
-        self._draw_call()
+        self.text_render.set_font(self.text_file, self.text_size * self.content_scale)
+        self._render_call()
 
 
     def _callback_keyboad_button(self, window, key, scancode, action, mods):
@@ -231,26 +230,26 @@ class FractalRenderingApp:
 
         # Increase pixel scale
         if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS:
-            temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
+            temp_pix_scale = min(self.content_scale + self.pix_scale_step, self.pix_scale_max)
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
         if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS:
-            temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
+            temp_pix_scale = max(self.content_scale - self.pix_scale_step, self.pix_scale_min)
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
         if key == getattr(glfw, self.controls_cnfg['ZOOM_IN']):
-            if (action == glfw.PRESS):
+            if action == glfw.PRESS:
                 self.keyboard_up_key_hold = True
-            elif (action == glfw.RELEASE):
+            elif action == glfw.RELEASE:
                 self.keyboard_up_key_hold = False
 
         # Hold zoom-out
         if key == getattr(glfw, self.controls_cnfg['ZOOM_OUT']):
-            if (action == glfw.PRESS):
+            if action == glfw.PRESS:
                 self.keyboard_down_key_hold = True
-            elif (action == glfw.RELEASE):
+            elif action == glfw.RELEASE:
                 self.keyboard_down_key_hold = False
 
         # Next colormap
@@ -282,10 +281,15 @@ class FractalRenderingApp:
                 temp_list = sorted([int(x.split('.')[0]) for x in output_files])
                 counter = temp_list[-1] + 1
             # Read pixels and save the image
-            output_image = self._read_color_framebuffer(self.canvas.framebuffers['COLOR'])
+            output_image = self.read_pixels()
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
+    def read_pixels(self):
+        image_array = np.empty(shape=(self.window_size[0] * self.window_size[1] * 3), dtype='uint8')
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
+        glReadPixels(0, 0, self.window_size[0], self.window_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
+        return image_array.reshape((self.window_size[1], self.window_size[0], 3))
 
     def _callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
@@ -299,15 +303,14 @@ class FractalRenderingApp:
     def _callback_mouse_scroll(self, window, x_offset, y_offset):
         # Zoom-in
         if y_offset > 0:
-            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
+            temp_scale_step = 5.0 * self.canvas.scale_step * abs(y_offset)
             self.canvas.increase_scale(temp_scale_step)
         # Zoom-out
         if y_offset < 0:
-            temp_scale_step = 5.0 * self.canvas.scale_abs_step * abs(y_offset)
+            temp_scale_step = 5.0 * self.canvas.scale_step * abs(y_offset)
             self.canvas.decrease_scale(temp_scale_step)
 
 
-    # TODO : DEBUG
     def _callback_cursor_position(self, window, x_pos, y_pos):
         self.canvas.set_mouse_pos(np.asarray([x_pos, y_pos]))
 
@@ -318,25 +321,22 @@ class FractalRenderingApp:
             self.canvas.update_shift()
         # Zoom-in
         if self.keyboard_up_key_hold:
-            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
+            temp_scale_step = self.canvas.scale_step * self.clock.frame_time * 60.0
             self.canvas.increase_scale(temp_scale_step)
         # Zoom-out
         if self.keyboard_down_key_hold:
-            temp_scale_step = self.canvas.scale_abs_step * self.clock.frame_time * 60.0
+            temp_scale_step = self.canvas.scale_step * self.clock.frame_time * 60.0
             self.canvas.decrease_scale(temp_scale_step)
 
 
     def _update_window_size(self, size, pix_scale):
-        # Update mouse position
-        # temp_mp_s = self.canvas.mouse_pos * (self.pix_scale / pix_scale)
-        # self.canvas.set_mouse_pos(temp_mp_s)
         # Update window size
         self.window_size = np.asarray(size).astype('int')
-        self.pix_scale = float(pix_scale)
+        self.content_scale = float(pix_scale)
+        self.render_size = (self.window_size / self.content_scale).astype('int')
         # Update app variables
-        self.render_size = (self.window_size / self.pix_scale).astype('int')
-        self.canvas_size = (self.window_size - 2 * self.canvas_offset).astype('int')
-        self.canvas.resize(self.canvas_size, self.pix_scale)
+        self.canvas_size = (np.asarray([0.5 * self.window_size[0], self.window_size[1]]) - 2 * self.canvas_pos).astype('int')
+        self.canvas.resize(self.canvas_size, self.content_scale)
 
 
     # O------------------------------------------------------------------------------O
@@ -380,86 +380,88 @@ class FractalRenderingApp:
         glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
 
 
-    def _read_color_framebuffer(self, framebuffer):
-        # Initialize output image
-        image_array = np.empty(shape=(framebuffer.size[0] * framebuffer[1] * 3), dtype='uint8')
-        # Read pixels from the selected framebuffer
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer.fbo)
-        glReadPixels(0, 0, framebuffer.size[0], framebuffer.size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
-        # Return reshaped image
-        return image_array.reshape((framebuffer.size[1], framebuffer.size[0], 3))
-
-
     def _get_info_text(self):
-        text = (f'CMAP = {self.cmaps[self.cmap_id]}\n'
-                f'ZOOM = {(self.canvas.scale_abs / self.canvas.scale_abs_default):.2E}\n'
-                f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
-                f'CANVAS = {self.canvas.win_size[0]}x{self.canvas.win_size[1]}\n'
-                f'RENDER = {self.canvas.size[0]}x{self.canvas.size[1]}\n'
-                f'SCALE = {self.pix_scale}\n'
-                f'ITER = {self.num_iter}\n'
-                f'FPS = {int(np.round((1.0 / self.clock.frame_time)))}\n'
-                f'ACTIVE = {self.canvas.is_active()}\n'
-                f'MOUSE = {self.canvas.mouse_pos}')
+        text = (
+            f'CMAP = {self.cmaps[self.cmap_id]}\n'
+            f'ZOOM = {self.canvas.scale_rel:.2E}\n'
+            f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
+            f'CANVAS = {self.canvas.size[0]}x{self.canvas.size[1]}\n'
+            f'RENDER = {self.canvas.render_size[0]}x{self.canvas.render_size[1]}\n'
+            f'SCALE = {self.content_scale}\n'
+            f'ITER = {self.num_iter}\n'
+            f'FPS = {int(np.round((1.0 / self.clock.frame_time)))}\n'
+            f'ACTIVE = {self.canvas.is_active()}'
+        )
         return text
 
 
-    def _draw_call(self):
+    def _render_fractal_program(self, canvas, gl_program, uniform_locations):
+        glViewport(0, 0, canvas.render_size[0], canvas.render_size[1])
 
-        # 01. COMPUTE MANDELBROT ITERATIONS
-        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['ITER'].fbo)
+        # 01. FRACTAL ITERATIONS
+        # Bind and clear the framebuffer
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, canvas.framebuffer['ITER'].id)
         glClear(GL_COLOR_BUFFER_BIT)
         glClearColor(0.0, 0.0, 0.0, 1.0)
-        glUseProgram(self.program_mandelbrot)
+        # Use the program
+        glUseProgram(gl_program)
         # Send uniforms to the GPU
-        glUniform2dv(self.uniform_locations_mandelbrot['range_x'], 1, self.canvas.range_x.astype('float64'))
-        glUniform2dv(self.uniform_locations_mandelbrot['range_y'], 1, self.canvas.range_y.astype('float64'))
-        glUniform1d(self.uniform_locations_mandelbrot['pix_size'], 1.0 / self.canvas.scale_abs)
-        glUniform1i(self.uniform_locations_mandelbrot['num_iter'], self.num_iter)
-        # Draw geometry
-        glBindVertexArray(self.canvas.polygon_vao)
-        glDrawArrays(GL_TRIANGLES, 0, self.canvas.polygon_buffer_n_indices)
+        mouse_pos_w = canvas.s2w(canvas.mouse_pos)
+        glUniform2dv(uniform_locations['mouse_pos'], 1, mouse_pos_w.astype('float64'))
+        glUniform2dv(uniform_locations['range_x'], 1, canvas.range_x.astype('float64'))
+        glUniform2dv(uniform_locations['range_y'], 1, canvas.range_y.astype('float64'))
+        glUniform1d(uniform_locations['pix_size'], 1.0 / canvas.scale_abs)
+        glUniform1i(uniform_locations['num_iter'], self.num_iter)
+        # Draw arrays
+        glBindVertexArray(canvas._polygon_vao)
+        glDrawArrays(GL_TRIANGLES, 0, canvas._polygon_buffer_n_indices)
 
-        # 02. FRACTAL COLORING
-        glViewport(0, 0, self.canvas.size[0], self.canvas.size[1])
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
+        # 02. FRACTAL COLOR
+        # Bind and clear the framebuffer
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, canvas.framebuffer['COLOR'].id)
         glClear(GL_COLOR_BUFFER_BIT)
         glClearColor(0.0, 0.0, 0.0, 1.0)
+        # Use the program
         glUseProgram(self.program_color)
         # Bind resources
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.cmap_buffer)
-        glBindTexture(GL_TEXTURE_2D, self.canvas.framebuffers['ITER'].tex)
+        glBindTexture(GL_TEXTURE_2D, canvas.framebuffer['ITER'].tex_id)
         glActiveTexture(GL_TEXTURE0)
         # Send uniforms to the GPU
         glUniform1i(self.uniform_locations_color['num_iter'], self.num_iter)
         # Draw geometry
-        glBindVertexArray(self.canvas.polygon_vao)
-        glDrawArrays(GL_TRIANGLES, 0, self.canvas.polygon_buffer_n_indices)
+        glBindVertexArray(canvas._polygon_vao)
+        glDrawArrays(GL_TRIANGLES, 0, canvas._polygon_buffer_n_indices)
 
-        # 03. COPY FRAMEBUFFERS
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, self.canvas.framebuffers['COLOR'].fbo)
+        # 03. BLIT TO SCREEN
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, canvas.framebuffer['COLOR'].id)
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
+        # Compute target framebuffer coordinates
+        dstX0 = int(canvas.pos[0])
+        dstY0 = int(self.window_size[1] - canvas.pos[1] - canvas.size[1])
+        dstX1 = int(canvas.pos[0] + canvas.size[0])
+        dstY1 = int(self.window_size[1] - canvas.pos[1])
+        # Copy framebuffer
+        glBlitFramebuffer(0, 0, canvas.render_size[0], canvas.render_size[1], dstX0, dstY0, dstX1, dstY1,
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST)
+
+
+    def _render_call(self):
+
+        # Clear the screen
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
         glClear(GL_COLOR_BUFFER_BIT)
         glClearColor(0.0, 0.0, 0.0, 1.0)
 
-        # DEBUG - set canvas position
-        dstX0 = int(self.canvas_pos[0])
-        dstY0 = int(self.window_size[1] - self.canvas_size[1] - self.canvas_pos[1])
-        dstX1 = int(self.canvas_pos[0] + self.canvas_size[0])
-        dstY1 = int(self.window_size[1] - self.canvas_pos[1])
+        # Render the Mandelbrot set
+        self._render_fractal_program(self.canvas, self.program_mandelbrot, self.uniform_locations_mandelbrot)
 
-        # Copy framebuffer
-        glBlitFramebuffer(0, 0, self.canvas.size[0], self.canvas.size[1],
-                          dstX0, dstY0, dstX1, dstY1,
-                          GL_COLOR_BUFFER_BIT, GL_NEAREST)
-
-        # 04. RENDER TEXT TO WINDOW
+        # Render text to screen
         if self.show_info_text:
             glViewport(0, 0, self.window_size[0], self.window_size[1])
             self.text_render.draw_text(self._get_info_text(), 10, 8, 1.0, (255, 255, 255))
 
-        # 05. SWAP BUFFERS AND UPDATE TIMINGS
+        # Swap buffers and update timings
         glfw.swap_buffers(self.window)
         self.clock.Update()
 

@@ -24,15 +24,15 @@ class TextRender:
     def __init__(self):
 
         # Initialize empty variables
-        self.window_size = None
-        self.proj_mat = None
-        self.font_size = None
-        self.font_texture_size = None
-        self.font_texture_array = None
-        self.characters = {}
+        self._window_size = None
+        self._proj_mat = None
+        self._font_size = None
+        self._font_texture_size = None
+        self._font_texture_array = None
+        self._characters = {}
 
         # Determine maximum number of instances from maximum uniform block size
-        self.max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
+        self._max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
 
         # Create shader program
         self._set_shader_program()
@@ -45,37 +45,50 @@ class TextRender:
 
 
     # O------------------------------------------------------------------------------O
+    # | PUBLIC - GETTERS AND SETTERS                                                 |
+    # O------------------------------------------------------------------------------O
+
+    @property
+    def window_size(self):
+        return self._window_size
+
+    @property
+    def font_size(self):
+        return self._font_size
+
+
+    # O------------------------------------------------------------------------------O
     # | PUBLIC - TEXT MANIPULATION FUNCTIONS                                         |
     # O------------------------------------------------------------------------------O
 
     def set_window_size(self, size):
-        self.window_size = np.asarray(size).astype('int')
-        self.proj_mat = ortho_transform_mat(0, self.window_size[0], 0, self.window_size[1], -1, 1)
+        self._window_size = np.asarray(size).astype('int')
+        self._proj_mat = ortho_transform_mat(0, self._window_size[0], 0, self._window_size[1], -1, 1)
 
 
     def set_font(self, font_type, font_size):
         num_ASCII_char = 256
-        self.font_size = int(font_size)
+        self._font_size = int(font_size)
 
         # Disable byte-alignment restriction
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
 
         # Load freetype characters
         face = freetype.Face(font_type)
-        face.set_pixel_sizes(self.font_size, self.font_size)
+        face.set_pixel_sizes(self._font_size, self._font_size)
 
         # Delete previous texture if it exists
-        if self.font_texture_array is not None:
-            self.characters = {}
-            glDeleteTextures(1, [self.font_texture_array])
+        if self._font_texture_array is not None:
+            self._characters = {}
+            glDeleteTextures(1, [self._font_texture_array])
 
         # Generate texture array
-        self.font_texture_size = int(1.2 * font_size)  # A bit bigger just in case
-        self.font_texture_array = glGenTextures(1)
+        self._font_texture_size = int(1.2 * font_size)  # A bit bigger just in case
+        self._font_texture_array = glGenTextures(1)
         glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D_ARRAY, self.font_texture_array)
-        zero_array = np.zeros(shape=(self.font_texture_size * self.font_texture_size * num_ASCII_char), dtype='uint8')
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, self.font_texture_size, self.font_texture_size, num_ASCII_char, 0, GL_RED, GL_UNSIGNED_BYTE, zero_array)
+        glBindTexture(GL_TEXTURE_2D_ARRAY, self._font_texture_array)
+        zero_array = np.zeros(shape=(self._font_texture_size * self._font_texture_size * num_ASCII_char), dtype='uint8')
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, self._font_texture_size, self._font_texture_size, num_ASCII_char, 0, GL_RED, GL_UNSIGNED_BYTE, zero_array)
 
         # Set texture options
         glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
@@ -94,7 +107,7 @@ class TextRender:
             # Update the 3D image
             glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, face_width, face_height, 1, GL_RED, GL_UNSIGNED_BYTE, face_buffer)
             # Store character for later use
-            self.characters[chr(i)] = CharacterSlot(i, face.glyph)
+            self._characters[chr(i)] = CharacterSlot(i, face.glyph)
 
 
     def draw_text(self, text, x, y, scale, color):
@@ -103,9 +116,9 @@ class TextRender:
         # Activate text rendering
         glUseProgram(self.shader_program)
         glUniform3fv(self.uniform_locations['color'], 1, color.astype('float32'))
-        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, self.proj_mat.astype('float32'))
+        glUniformMatrix4fv(self.uniform_locations['proj_mat'], 1, GL_FALSE, self._proj_mat.astype('float32'))
         glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D_ARRAY, self.font_texture_array)
+        glBindTexture(GL_TEXTURE_2D_ARRAY, self._font_texture_array)
         glBindVertexArray(self.texture_vao)
         glBindBuffer(GL_ARRAY_BUFFER, self.texture_vbo)
 
@@ -114,7 +127,7 @@ class TextRender:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
         # Flip y-axis for top-left origin
-        y = self.window_size[1] - y - self.font_size * scale
+        y = self._window_size[1] - y - self._font_size * scale
 
         # Loop over the text
         x_start = x
@@ -122,12 +135,12 @@ class TextRender:
         for c in text:
 
             # Get the current character
-            ch = self.characters[c]
+            ch = self._characters[c]
 
             # Check if we have a new line character
             if c == '\n':
                 x = x_start
-                y -= self.font_size * scale
+                y -= self._font_size * scale
 
             # Check if we have an empty space or a tab
             elif (c == ' ') or (c == '\t'):
@@ -137,8 +150,8 @@ class TextRender:
             else:
                 # Get dimensions
                 x_pos = x + ch.bearing[0] * scale
-                y_pos = y - (self.font_size - ch.bearing[1]) * scale
-                size = self.font_texture_size * scale
+                y_pos = y - (self._font_size - ch.bearing[1]) * scale
+                size = self._font_texture_size * scale
 
                 # Set up the texture data
                 self.trans_mat_array[instance_id, :, :] = char_transform_mat(x_pos, y_pos, size)
@@ -150,12 +163,12 @@ class TextRender:
                 instance_id += 1
 
                 # Intermediate draw call
-                if instance_id == self.max_instances:
-                    self._draw_call(instance_id)
+                if instance_id == self._max_instances:
+                    self._render_call(instance_id)
                     instance_id = 0
 
         # Final draw call
-        self._draw_call(instance_id)
+        self._render_call(instance_id)
 
         # Disable text blending
         glDisable(GL_BLEND)
@@ -164,8 +177,8 @@ class TextRender:
     def delete(self):
         glDeleteBuffers(3, [self.texture_vbo, self.trans_mat_buffer, self.char_id_buffer])
         glDeleteVertexArrays(1, [self.texture_vao])
-        if self.font_texture_array is not None:
-            glDeleteTextures(1, [self.font_texture_array])
+        if self._font_texture_array is not None:
+            glDeleteTextures(1, [self._font_texture_array])
         glDeleteProgram(self.shader_program)
 
 
@@ -178,8 +191,8 @@ class TextRender:
         vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.vert'))
         fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.frag'))
         # Dynamically modify the shader source code before compilation
-        vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
-        fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self.max_instances))
+        vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self._max_instances))
+        fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self._max_instances))
         # Create a shader program
         self.shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
         glUseProgram(self.shader_program)
@@ -205,7 +218,7 @@ class TextRender:
 
     def _set_trans_mat_buffer(self):
         # Initialize the data
-        self.trans_mat_array = np.zeros(shape=(self.max_instances, 4, 4), dtype='float32')
+        self.trans_mat_array = np.zeros(shape=(self._max_instances, 4, 4), dtype='float32')
         # Set transformation matrices buffer
         self.trans_mat_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)
@@ -217,7 +230,7 @@ class TextRender:
 
     def _set_char_id_buffer(self):
         # Initialize the data
-        self.char_id_array = np.zeros(shape=(self.max_instances, 4), dtype='int32')
+        self.char_id_array = np.zeros(shape=(self._max_instances, 4), dtype='int32')
         # Set character ids buffer
         self.char_id_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.char_id_buffer)
@@ -231,7 +244,7 @@ class TextRender:
     # | PRIVATE - OPENGL DRAW CALL                                                   |
     # O------------------------------------------------------------------------------O
 
-    def _draw_call(self, num_instances):
+    def _render_call(self, num_instances):
         # Update transformation buffer
         temp_data = self.trans_mat_array[0: num_instances, :, :]
         glBindBuffer(GL_UNIFORM_BUFFER, self.trans_mat_buffer)

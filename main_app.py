@@ -21,7 +21,7 @@ if __name__ == '__main__':
     cmaps_list = LoadColormapsFile(os.path.join(PATH_TO_ASSETS, config_file['CMAPS_FILE']))
 
     # Change the default path to assets
-    FractalRenderingApp.SetPathToAssets(PATH_TO_ASSETS)
+    FractalRenderingApp.set_path_to_assets(PATH_TO_ASSETS)
 
     # Run the main app
     app = FractalRenderingApp(
@@ -30,5 +30,5 @@ if __name__ == '__main__':
         fractal_config=config_file['FRACTAL'],
         cmaps=cmaps_list,
     )
-    app.Run()
-    app.Close()
+    app.run()
+    app.close()
