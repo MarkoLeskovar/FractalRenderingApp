@@ -66,6 +66,14 @@ class RenderCanvas(Canvas):
     def framebuffer(self):
         return self._framebuffer
 
+    @property
+    def mouse_pos(self):
+        return self._mouse_pos
+
+    @mouse_pos.setter
+    def mouse_pos(self, pos):
+        self._mouse_pos = (np.asarray(pos) - self._canvas_pos) / self._pix_scale
+
 
     # O------------------------------------------------------------------------------O
     # | PUBLIC - FRAMEBUFFER MANIPULATION                                            |
@@ -142,11 +150,6 @@ class RenderCanvas(Canvas):
         for fbo in self._framebuffer.values():
             fbo.size = self._size
             fbo.update()
-
-
-    def set_mouse_pos(self, pos):
-        temp_mp_s = (np.asarray(pos) - self._canvas_pos) / self._pix_scale
-        self.mouse_pos = temp_mp_s
 
 
     def delete(self):

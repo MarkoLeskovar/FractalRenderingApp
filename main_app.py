@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from fractals.color import LoadColormapsFile
-from fractals.fractal_render import FractalRenderingApp
+from fractals.render_fractal import FractalRenderingApp
 
 # Define path to assets depending on if the app is bundled or not
 PATH_TO_ASSETS = os.path.join(os.path.dirname(__file__), 'fractals', 'assets')

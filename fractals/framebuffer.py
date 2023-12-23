@@ -41,7 +41,6 @@ class Framebuffer:
         glBindFramebuffer(GL_FRAMEBUFFER, self._fbo_id)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._tex_id, 0)
 
-
     def delete(self):
         glDeleteFramebuffers(1, [self._fbo_id])
         glDeleteTextures(1, [self._tex_id])
