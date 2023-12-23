@@ -70,8 +70,8 @@ class RenderTexture:
 
     def _set_shader_program(self):
         # Read shader source code
-        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'blit_texture.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'blit_texture.frag'))
+        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'texture_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'texture_render.frag'))
         # Create a shader program
         self._shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
         glUseProgram(self._shader_program)
