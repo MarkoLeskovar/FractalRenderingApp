@@ -16,7 +16,7 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-class TextRender:
+class RenderText:
 
     # "Static" variable
     path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')

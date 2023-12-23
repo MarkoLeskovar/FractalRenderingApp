@@ -11,7 +11,7 @@ from OpenGL.GL import *
 # Add custom modules
 from .clock import ClockGLFW
 from .default_config import *
-from .render_text import TextRender
+from .render_text import RenderText
 from .render_texture import RenderTexture
 from .color import GetColormapArray
 from .render_canvas import RenderCanvas
@@ -81,18 +81,18 @@ class FractalRenderingApp:
         self.canvas.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
         self.canvas.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
 
-        # Blit texture class
-        self.blit_texture_to_screen = RenderTexture()
+        # Texture render class
+        self.render_texture = RenderTexture()
 
         # Create GLFW clock
         self.clock = ClockGLFW()
 
-        # Create a text renderer
+        # Text render class
         self.text_size = int(self.app_cnfg['FONT_SIZE'])
         self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
-        self.text_render = TextRender()
-        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
-        self.text_render.set_window_size(self.window_size)
+        self.render_text = RenderText()
+        self.render_text.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.render_text.set_window_size(self.window_size)
 
         # Set GLFW callback functions
         self._set_callback_functions_glfw()
@@ -130,8 +130,8 @@ class FractalRenderingApp:
     def close(self):
         # Delete custom classes
         self.canvas.delete()
-        self.text_render.delete()
-        self.blit_texture_to_screen.delete()
+        self.render_text.delete()
+        self.render_texture.delete()
         # Delete OpenGL buffers
         glDeleteBuffers(1, [self.cmap_buffer])
         glDeleteProgram(self.program_mandelbrot)
@@ -183,13 +183,13 @@ class FractalRenderingApp:
         if not self.window_minimized:
             temp_size = glfw.get_framebuffer_size(self.window)
             self._update_window_size(temp_size, self.pix_scale)
-            self.text_render.set_window_size((width, height))
+            self.render_text.set_window_size((width, height))
             self._render_call()
 
 
     def _callback_content_scale(self, window, scale_x, scale_y):
         self._update_window_size(self.window_size, scale_x)
-        self.text_render.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.render_text.set_font(self.text_file, self.text_size * self.pix_scale)
         self._render_call()
 
 
@@ -446,11 +446,11 @@ class FractalRenderingApp:
         self._render_fractal_program(self.canvas, self.program_mandelbrot, self.uniform_locations_mandelbrot, self.num_iter)
 
         # Blit to screen
-        self.blit_texture_to_screen(self.window_size, self.canvas.pos, self.canvas.size, self.canvas.framebuffer['COLOR'].tex_id)
+        self.render_texture(self.window_size, self.canvas.pos, self.canvas.size, self.canvas.framebuffer['COLOR'].tex_id)
 
         # Render text to screen
         if self.show_info_text:
-            self.text_render.draw_text(self._get_info_text(), (10, 8), 1.0, (255, 255, 255))
+            self.render_text.draw_text(self._get_info_text(), (10, 8), 1.0, (255, 255, 255))
 
         # Swap buffers and update timings
         glfw.swap_buffers(self.window)
