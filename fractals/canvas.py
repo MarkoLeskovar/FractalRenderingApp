@@ -8,7 +8,7 @@ O------------------------------------------------------------------------------O
 
 class Canvas:
 
-    def __init__(self, size=(400, 300), range_x=(-1, 1), zoom_min=0.5, zoom_max=1.0e15, zoom_step=0.02):
+    def __init__(self, size=(400, 300), range_x=(-1.0, 1.0), zoom_min=0.5, zoom_max=1.0e15, zoom_step=0.02):
         self._size = np.asarray(size).astype('int')
         self._range_x_default = np.asarray(range_x).astype('float')
         # Scaling settings

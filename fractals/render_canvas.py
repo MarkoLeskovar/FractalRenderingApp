@@ -9,11 +9,6 @@ from .canvas import Canvas
 from .framebuffer import Framebuffer
 
 
-# TODO : Add RenderCanvasManager class which should act as in interface between window and all canvases. It should also
-#      : have a function that return the currently active canvas
-# TODO : Add drawing area polygon creation to the class. Input should be in pixels and initialized with full window.
-# TODO : Once this is done, merge the changes with the main branch before doing more work.
-
 ''' 
 O------------------------------------------------------------------------------O
 | RENDER CANVAS CLASS FOR ADVANCED WINDOW DRAWING AREA HANDLING                |
@@ -22,12 +17,11 @@ O------------------------------------------------------------------------------O
 
 class RenderCanvas(Canvas):
 
-    def __init__(self, pos=(0, 0), size=(400, 300), pix_scale=1.0, range_x=(-1, 1), zoom_min=0.5, zoom_max=1.0e15, zoom_step=0.02):
+    def __init__(self, pos=(0, 0), size=(400, 300), pix_scale=1.0, range_x=(-1.0, 1.0)):
 
         # Initialize empty variables
         self._framebuffer = {}
         self._polygon = None
-        self._polygon_points = None
         self._polygon_vao = None
         self._polygon_buffer = None
         self._polygon_buffer_n_indices = None
@@ -39,11 +33,11 @@ class RenderCanvas(Canvas):
 
         # Initialize base class
         render_size = (self._canvas_size / self._pix_scale).astype('int')
-        super().__init__(render_size, range_x, zoom_min, zoom_max, zoom_step)
+        super().__init__(render_size, range_x)
 
         # Initialize a textured polygon
-        temp_points = np.asarray([[0, 0], [0, self._size[1]], self._size, [self._size[0], 0]])
-        self._set_polygon_buffer(temp_points)
+        self._polygon_points = np.asarray([[0, 0], [0, self._size[1]], self._size, [self._size[0], 0]])
+        self.set_polygon_buffer()
 
 
     # O------------------------------------------------------------------------------O
@@ -53,6 +47,10 @@ class RenderCanvas(Canvas):
     @property
     def pos(self):
         return self._canvas_pos
+
+    @pos.setter
+    def pos(self, pos):
+        self._canvas_pos = np.asarray(pos).astype('int')
 
     @property
     def size(self):
@@ -82,8 +80,8 @@ class RenderCanvas(Canvas):
     def add_framebuffer(self, fbo_name, gl_internalformat, gl_format, gl_type):
         if fbo_name in self._framebuffer.keys():
             self._framebuffer[fbo_name].delete()
-        else:
-            self._framebuffer[fbo_name] = Framebuffer(self.render_size, gl_internalformat, gl_format, gl_type)
+        self._framebuffer[fbo_name] = Framebuffer(self.render_size, gl_internalformat, gl_format, gl_type)
+        self._framebuffer[fbo_name].initialize()
 
 
     def delete_framebuffer(self, fbo_name):
@@ -91,8 +89,7 @@ class RenderCanvas(Canvas):
         fbo.delete()
 
 
-    def _set_polygon_buffer(self, points_s):
-        self._polygon_points = np.asarray(points_s)
+    def set_polygon_buffer(self):
         self._polygon = Polygon(self.s2gl(self._polygon_points.T).T)
         # Create polygon buffer and assign number of indices
         polygon_buffer_array = self._create_polygon_buffer_array()
@@ -110,8 +107,7 @@ class RenderCanvas(Canvas):
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, ctypes.c_void_p(8))
 
 
-    def update_polygon_buffer(self, points_s):
-        self._polygon_points = np.asarray(points_s)
+    def update_polygon_buffer(self):
         self._polygon = Polygon(self.s2gl(self._polygon_points.T).T)
         # Create polygon buffer and assign number of indices
         polygon_buffer_array = self._create_polygon_buffer_array()
@@ -158,3 +154,4 @@ class RenderCanvas(Canvas):
         # Remove framebuffers
         for fbo in self._framebuffer.values():
             fbo.delete()
+        self._framebuffer = {}

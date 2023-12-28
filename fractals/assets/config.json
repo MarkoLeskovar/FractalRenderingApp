@@ -33,6 +33,14 @@
             "NUM_ITER_STEP":    32,
             "RANGE_X_MAX":      1.0,
             "RANGE_X_MIN":      -2.0
+        },
+        "JULIA": {
+            "NUM_ITER":         64,
+            "NUM_ITER_MAX":     2048,
+            "NUM_ITER_MIN":     64,
+            "NUM_ITER_STEP":    32,
+            "RANGE_X_MAX":      1.0,
+            "RANGE_X_MIN":      -2.0
         }
     },
     "CMAPS_FILE": "cmaps_diverging.txt"

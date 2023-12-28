@@ -16,7 +16,6 @@ class Framebuffer:
         self.gl_type = gl_type
         self._fbo_id = None
         self._tex_id = None
-        self._set_framebuffer()
 
     @property
     def numpy_type(self):
@@ -34,18 +33,9 @@ class Framebuffer:
     def tex_id(self):
         return self._tex_id
 
-    def update(self):
-        glBindTexture(GL_TEXTURE_2D, self._tex_id)
-        glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0,
-                     self.gl_format, self.gl_type, None)
-        glBindFramebuffer(GL_FRAMEBUFFER, self._fbo_id)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._tex_id, 0)
-
-    def delete(self):
-        glDeleteFramebuffers(1, [self._fbo_id])
-        glDeleteTextures(1, [self._tex_id])
-
-    def _set_framebuffer(self):
+    def initialize(self):
+        if self._fbo_id is not None:
+            raise ValueError('Framebuffer is already initialized!')
         # Create a framebuffer object
         self._fbo_id = glGenFramebuffers(1)
         glBindFramebuffer(GL_FRAMEBUFFER, self._fbo_id)
@@ -59,6 +49,23 @@ class Framebuffer:
         glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0,
                      self.gl_format, self.gl_type, None)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._tex_id, 0)
+
+    def update(self):
+        if self._fbo_id is None:
+            raise ValueError('Framebuffer is not initialized!')
+        glBindTexture(GL_TEXTURE_2D, self._tex_id)
+        glTexImage2D(GL_TEXTURE_2D, 0, self.gl_internalformat, self.size[0], self.size[1], 0,
+                     self.gl_format, self.gl_type, None)
+        glBindFramebuffer(GL_FRAMEBUFFER, self._fbo_id)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self._tex_id, 0)
+
+    def delete(self):
+        if self._fbo_id is None:
+            raise ValueError('Framebuffer is not initialized!')
+        glDeleteFramebuffers(1, [self._fbo_id])
+        glDeleteTextures(1, [self._tex_id])
+        self._fbo_id = None
+        self._tex_id = None
 
 
 '''

@@ -1,5 +1,4 @@
 import os
-import tripy
 import numpy as np
 from PIL import Image
 
@@ -16,9 +15,6 @@ from .render_texture import RenderTexture
 from .color import GetColormapArray
 from .render_canvas import RenderCanvas
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
-
-
-# TODO : Add RenderCanvasManager class for automatic canvas handling
 
 
 '''
@@ -43,17 +39,6 @@ class FractalRenderingApp:
         self.cmaps = set_default_if_none(DEFAULT_CMAPS, cmaps)
         self.cmap_id = 0
 
-        # Fractal interation settings
-        self.num_iter = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER'])
-        self.num_iter_min = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_MIN'])
-        self.num_iter_max = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_MAX'])
-        self.num_iter_step = int(self.fractal_cnfg['MANDELBROT']['NUM_ITER_STEP'])
-
-        # Pixel scaling settings
-        self.pix_scale_min = float(self.app_cnfg['PIX_SCALE_MIN'])
-        self.pix_scale_max = float(self.app_cnfg['PIX_SCALE_MAX'])
-        self.pix_scale_step = float(self.app_cnfg['PIX_SCALE_STEP'])
-
         # Initialize GLFW
         glfw.init()
         # Create GLFW window and set the icon
@@ -66,20 +51,28 @@ class FractalRenderingApp:
         # Get the actual window size
         self.pix_scale = float(glfw.get_window_content_scale(self.window)[0])
         self.window_size = np.asarray(glfw.get_framebuffer_size(self.window)).astype('int')
-        self.render_size = (self.window_size / self.pix_scale).astype('int')
 
         # Create a render canvas
-        range_x = (float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN']),
-                   float(self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX']))
+        temp_range_x = (self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN'], self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX'])
+        canvas_1 = RenderCanvas((0, 0), self.window_size, self.pix_scale, temp_range_x)
+        canvas_1.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        canvas_1.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
 
-        # TODO : DEBUG
-        self.canvas_pos = np.asarray([100, 100])
-        self.canvas_size = (np.asarray([0.5 * self.window_size[0], self.window_size[1]]) - 2 * self.canvas_pos).astype('int')
-        self.canvas = RenderCanvas(self.canvas_pos, self.canvas_size, self.pix_scale, range_x)
+        # Create a render canvas
+        temp_range_x = (self.fractal_cnfg['JULIA']['RANGE_X_MIN'], self.fractal_cnfg['JULIA']['RANGE_X_MAX'])
+        temp_pos = np.ceil(0.7 * self.window_size)
+        temp_size = 0.3 * self.window_size
+        canvas_2 = RenderCanvas(temp_pos, temp_size, self.pix_scale, temp_range_x)
+        canvas_2.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        canvas_2.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
 
-        # Create framebuffers
-        self.canvas.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
-        self.canvas.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
+        # Create a canvas manager
+        self.canvas_dict = {'DEFAULT': RenderCanvas(), 'MANDELBROT': canvas_1, 'JULIA': canvas_2}
+
+        # Default configuration and active canvas
+        self.fractal_cnfg['DEFAULT'] = self.fractal_cnfg['MANDELBROT'].copy()
+        self.active_canvas_name = 'MANDELBROT'
+        self.active_canvas = canvas_1
 
         # Texture render class
         self.render_texture = RenderTexture()
@@ -88,10 +81,9 @@ class FractalRenderingApp:
         self.clock = ClockGLFW()
 
         # Text render class
-        self.text_size = int(self.app_cnfg['FONT_SIZE'])
         self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
         self.render_text = RenderText()
-        self.render_text.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.render_text.set_font(self.text_file, self.app_cnfg['FONT_SIZE'] * self.pix_scale)
         self.render_text.set_window_size(self.window_size)
 
         # Set GLFW callback functions
@@ -101,12 +93,17 @@ class FractalRenderingApp:
         base_vert_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_base.vert'))
         color_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_color.frag'))
         mandelbrot_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_mandelbrot.frag'))
+
         # Create shader programs
         self.program_color = create_shader_program(base_vert_source, color_frag_source)
+        self.program_julia = create_shader_program(base_vert_source, mandelbrot_frag_source)
         self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)
 
         # Get uniform locations
-        self.uniform_locations_color = get_uniform_locations(self.program_color, ['num_iter'])
+        self.uniform_locations_color = get_uniform_locations(
+            self.program_color, ['num_iter'])
+        self.uniform_locations_julia = get_uniform_locations(
+            self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
         self.uniform_locations_mandelbrot = get_uniform_locations(
             self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
 
@@ -124,18 +121,24 @@ class FractalRenderingApp:
             # Event handling
             glfw.poll_events()
             self._process_hold_keys()
-            self.canvas.update_mouse_pos()
+            # Update mouse pos
+            for canvas in self.canvas_dict.values():
+                canvas.update_mouse_pos()
 
 
     def close(self):
         # Delete custom classes
-        self.canvas.delete()
         self.render_text.delete()
         self.render_texture.delete()
+        self.canvas_dict['JULIA'].delete()
+        self.canvas_dict['DEFAULT'].delete()
+        self.canvas_dict['MANDELBROT'].delete()
+        # Delete shader programs
+        glDeleteProgram(self.program_color)
+        glDeleteProgram(self.program_julia)
+        glDeleteProgram(self.program_mandelbrot)
         # Delete OpenGL buffers
         glDeleteBuffers(1, [self.cmap_buffer])
-        glDeleteProgram(self.program_mandelbrot)
-        glDeleteProgram(self.program_color)
         # Terminate GLFW
         glfw.destroy_window(self.window)
         glfw.terminate()
@@ -189,7 +192,7 @@ class FractalRenderingApp:
 
     def _callback_content_scale(self, window, scale_x, scale_y):
         self._update_window_size(self.window_size, scale_x)
-        self.render_text.set_font(self.text_file, self.text_size * self.pix_scale)
+        self.render_text.set_font(self.text_file, self.app_cnfg['FONT_SIZE'] * self.pix_scale)
         self._render_call()
 
 
@@ -221,28 +224,34 @@ class FractalRenderingApp:
 
         # Increase number of iterations
         if key == getattr(glfw, self.controls_cnfg['ITER_INCREASE']) and action == glfw.PRESS:
-            self.num_iter = min(self.num_iter + self.num_iter_step, self.num_iter_max)
-
+            temp_dict = self.fractal_cnfg[self.active_canvas_name]
+            temp_num_iter = min(temp_dict['NUM_ITER'] + temp_dict['NUM_ITER_STEP'], temp_dict['NUM_ITER_MAX'])
+            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
         # Decrease number of iterations
         if key == getattr(glfw, self.controls_cnfg['ITER_DECREASE']) and action == glfw.PRESS:
-            self.num_iter = max(self.num_iter - self.num_iter_step, self.num_iter_min)
+            temp_dict = self.fractal_cnfg[self.active_canvas_name]
+            temp_num_iter = max(temp_dict['NUM_ITER'] - temp_dict['NUM_ITER_STEP'], temp_dict['NUM_ITER_MIN'])
+            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
-
-        # Reset shift and scale
+        # Reset shift, scale and number of iterations
         if key == getattr(glfw, self.controls_cnfg['RESET_VIEW']) and action == glfw.PRESS:
-            self.canvas.reset_shift_and_scale()
-            # Also reset the number of fractals iterations
-            self.num_iter = self.num_iter_min
+            # Reset canvas areas
+            self.active_canvas.reset_shift_and_scale()
+            # Reset number of iterations
+            temp_num_iter = self.fractal_cnfg[self.active_canvas_name]['NUM_ITER_MIN']
+            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
         # Increase pixel scale
         if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS:
-            temp_pix_scale = min(self.pix_scale + self.pix_scale_step, self.pix_scale_max)
+            temp_pix_scale = self.pix_scale + self.app_cnfg['PIX_SCALE_STEP']
+            temp_pix_scale = min(temp_pix_scale, self.app_cnfg['PIX_SCALE_MAX'])
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
         if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS:
-            temp_pix_scale = max(self.pix_scale - self.pix_scale_step, self.pix_scale_min)
+            temp_pix_scale = self.pix_scale - self.app_cnfg['PIX_SCALE_STEP']
+            temp_pix_scale = max(temp_pix_scale, self.app_cnfg['PIX_SCALE_MIN'])
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
@@ -288,15 +297,10 @@ class FractalRenderingApp:
                 temp_list = sorted([int(x.split('.')[0]) for x in output_files])
                 counter = temp_list[-1] + 1
             # Read pixels and save the image
-            output_image = self.read_pixels()
+            output_image = self._read_pixels()
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
-    def read_pixels(self):
-        image_array = np.empty(shape=(self.window_size[0] * self.window_size[1] * 3), dtype='uint8')
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
-        glReadPixels(0, 0, self.window_size[0], self.window_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
-        return image_array.reshape((self.window_size[1], self.window_size[0], 3))
 
     def _callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
@@ -310,40 +314,60 @@ class FractalRenderingApp:
     def _callback_mouse_scroll(self, window, x_offset, y_offset):
         # Zoom-in
         if y_offset > 0:
-            temp_scale_step = 5.0 * self.canvas.scale_step * abs(y_offset)
-            self.canvas.increase_scale(temp_scale_step)
+            temp_scale_step = 5.0 * self.active_canvas.scale_step * abs(y_offset)
+            self.active_canvas.increase_scale(temp_scale_step)
         # Zoom-out
         if y_offset < 0:
-            temp_scale_step = 5.0 * self.canvas.scale_step * abs(y_offset)
-            self.canvas.decrease_scale(temp_scale_step)
+            temp_scale_step = 5.0 * self.active_canvas.scale_step * abs(y_offset)
+            self.active_canvas.decrease_scale(temp_scale_step)
 
 
     def _callback_cursor_position(self, window, x_pos, y_pos):
-        self.canvas.mouse_pos = (x_pos, y_pos)
+        # Set mouse positions
+        for canvas in self.canvas_dict.values():
+            canvas.mouse_pos = (x_pos, y_pos)
+        # Get active canvas and its name
+        if (not self.mouse_left_button_hold) and (not self.keyboard_up_key_hold) and (not self.keyboard_down_key_hold):
+            # Get active canvas and its name
+            self.active_canvas_name = self._get_active_canvas_name()
+            self.active_canvas = self.canvas_dict[self.active_canvas_name]
 
 
     def _process_hold_keys(self):
         # Pan screen
         if self.mouse_left_button_hold:
-            self.canvas.update_shift()
+            self.active_canvas.update_shift()
         # Zoom-in
         if self.keyboard_up_key_hold:
-            temp_scale_step = self.canvas.scale_step * self.clock.frame_time * 60.0
-            self.canvas.increase_scale(temp_scale_step)
+            temp_scale_step = self.active_canvas.scale_step * self.clock.frame_time * 60.0
+            self.active_canvas.increase_scale(temp_scale_step)
         # Zoom-out
         if self.keyboard_down_key_hold:
-            temp_scale_step = self.canvas.scale_step * self.clock.frame_time * 60.0
-            self.canvas.decrease_scale(temp_scale_step)
+            temp_scale_step = self.active_canvas.scale_step * self.clock.frame_time * 60.0
+            self.active_canvas.decrease_scale(temp_scale_step)
 
 
     def _update_window_size(self, size, pix_scale):
-        # Update window size
         self.window_size = np.asarray(size).astype('int')
         self.pix_scale = float(pix_scale)
-        self.render_size = (self.window_size / self.pix_scale).astype('int')
-        # Update app variables
-        self.canvas_size = (np.asarray([0.5 * self.window_size[0], self.window_size[1]]) - 2 * self.canvas_pos).astype('int')
-        self.canvas.resize(self.canvas_size, self.pix_scale)
+        # Resize canvases
+        self.canvas_dict['MANDELBROT'].resize(self.window_size, self.pix_scale)
+        self.canvas_dict['JULIA'].resize(0.3 * self.window_size, self.pix_scale)
+        self.canvas_dict['JULIA'].pos = np.ceil(0.7 * self.window_size)
+
+
+    def _read_pixels(self):
+        image_array = np.empty(shape=(self.window_size[0] * self.window_size[1] * 3), dtype='uint8')
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
+        glReadPixels(0, 0, self.window_size[0], self.window_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
+        return image_array.reshape((self.window_size[1], self.window_size[0], 3))
+
+
+    def _get_active_canvas_name(self):
+        for key, canvas in reversed(self.canvas_dict.items()):
+            if canvas.is_active():
+                return key
+        return 'DEFAULT'
 
 
     # O------------------------------------------------------------------------------O
@@ -390,14 +414,13 @@ class FractalRenderingApp:
     def _get_info_text(self):
         text = (
             f'CMAP = {self.cmaps[self.cmap_id]}\n'
-            f'ZOOM = {self.canvas.scale_rel:.2E}\n'
-            f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
-            f'CANVAS = {self.canvas.size[0]}x{self.canvas.size[1]}\n'
-            f'RENDER = {self.canvas.render_size[0]}x{self.canvas.render_size[1]}\n'
-            f'SCALE = {self.pix_scale}\n'
-            f'ITER = {self.num_iter}\n'
             f'FPS = {int(np.round(self.clock.frame_rate))}\n'
-            f'ACTIVE = {self.canvas.is_active()}'
+            f'SCALE = {self.pix_scale}\n'
+            f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
+            f'CANVAS = {self.active_canvas.size[0]}x{self.active_canvas.size[1]}\n'
+            f'RENDER = {self.active_canvas.render_size[0]}x{self.active_canvas.render_size[1]}\n'
+            f'ZOOM = {self.active_canvas.scale_rel:.2E}\n'
+            f'ITER = {self.fractal_cnfg[self.active_canvas_name]["NUM_ITER"]}\n'
         )
         return text
 
@@ -437,16 +460,24 @@ class FractalRenderingApp:
 
     def _render_call(self):
 
+        # Get canvases and number of iterations
+        canvas_1 = self.canvas_dict['MANDELBROT']
+        canvas_2 = self.canvas_dict['JULIA']
+        num_iter_1 = self.fractal_cnfg['MANDELBROT']['NUM_ITER']
+        num_iter_2 = self.fractal_cnfg['JULIA']['NUM_ITER']
+
         # Clear the screen
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         glClearColor(0.0, 0.5, 0.5, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
 
-        # Render the Mandelbrot set
-        self._render_fractal_program(self.canvas, self.program_mandelbrot, self.uniform_locations_mandelbrot, self.num_iter)
+        # Render Mandelbrot set to texture
+        self._render_fractal_program(canvas_1, self.program_mandelbrot, self.uniform_locations_mandelbrot, num_iter_1)
+        self._render_fractal_program(canvas_2, self.program_julia, self.uniform_locations_julia, num_iter_2)
 
-        # Blit to screen
-        self.render_texture(self.window_size, self.canvas.pos, self.canvas.size, self.canvas.framebuffer['COLOR'].tex_id)
+        # Render texture to screen to screen
+        self.render_texture(self.window_size, canvas_1.pos, canvas_1.size, canvas_1.framebuffer['COLOR'].tex_id)
+        self.render_texture(self.window_size, canvas_2.pos, canvas_2.size, canvas_2.framebuffer['COLOR'].tex_id)
 
         # Render text to screen
         if self.show_info_text:
