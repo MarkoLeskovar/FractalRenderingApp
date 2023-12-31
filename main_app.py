@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from fractals.color import LoadColormapsFile
+from fractals.color import load_colormaps_file
 from fractals.render_fractal import FractalRenderingApp
 
 # Define path to assets depending on if the app is bundled or not
@@ -18,7 +18,7 @@ if __name__ == '__main__':
         config_file = json.load(f)
 
     # Load colormaps files
-    cmaps_list = LoadColormapsFile(os.path.join(PATH_TO_ASSETS, config_file['CMAPS_FILE']))
+    cmaps_list = load_colormaps_file(os.path.join(PATH_TO_ASSETS, config_file['CMAPS_FILE']))
 
     # Change the default path to assets
     FractalRenderingApp.set_path_to_assets(PATH_TO_ASSETS)

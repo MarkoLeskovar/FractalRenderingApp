@@ -10,7 +10,7 @@ O-------------------------------------------------------------------------------
 '''
 
 @numba.njit(cache=True)
-def IterationsHistogram(img_iterations, max_iter):
+def iterations_histogram(img_iterations, max_iter):
     # max_iter_max_id = max_iter - 1
     histogram = np.zeros(shape=max_iter, dtype='int32')
     for i in range(img_iterations.shape[0]):
@@ -22,7 +22,7 @@ def IterationsHistogram(img_iterations, max_iter):
 
 
 @numba.njit(cache=True)
-def HistogramRecoloring(img_iterations, histogram, histogram_sum):
+def histogram_recoloring(img_iterations, histogram, histogram_sum):
     img_iterations_norm = np.zeros(shape=img_iterations.shape, dtype='float')
     for i in range(img_iterations.shape[0]):
         for j in range(img_iterations.shape[1]):
@@ -38,7 +38,7 @@ O-------------------------------------------------------------------------------
 O-------------------------------------------------------------------------------O
 '''
 
-def LoadColormapsFile(cmap_file):
+def load_colormaps_file(cmap_file):
     # Open the file
     with open(cmap_file, mode='r') as f:
         lines_raw = f.readlines()
@@ -52,13 +52,13 @@ def LoadColormapsFile(cmap_file):
     return lines
 
 
-def GetColormapArray(cmap_name):
+def get_colormap_array(cmap_name):
     cmap = getattr(cmaps, cmap_name)
     return cmap(range(256))
 
 
 @numba.njit(cache=True)
-def ApplyColormap_nearest(iterations, cmap):
+def apply_colormap_nearest(iterations, cmap):
     img_size = iterations.shape
     cmap_max_i = cmap.shape[0] - 1
     img_color = np.empty(shape=(img_size[0], img_size[1], 3), dtype='float')
@@ -70,7 +70,7 @@ def ApplyColormap_nearest(iterations, cmap):
 
 
 @numba.njit(cache=True)
-def ApplyColormap_linear(iterations, cmap):
+def apply_colormap_linear(iterations, cmap):
     img_size = iterations.shape
     cmap_max_i = cmap.shape[0] - 1
     img_color = np.empty(shape=(img_size[0], img_size[1], 3), dtype='float')
@@ -86,7 +86,7 @@ def ApplyColormap_linear(iterations, cmap):
 
 
 @numba.njit(cache=True)
-def ApplyColormap_cubic(iterations, cmap):
+def apply_colormap_cubic(iterations, cmap):
     img_size = iterations.shape
     cmap_max_i = cmap.shape[0] - 1
     img_color = np.empty(shape=(img_size[0], img_size[1], 3), dtype='float')

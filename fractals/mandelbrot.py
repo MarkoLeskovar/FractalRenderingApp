@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 
-
 '''
 O-------------------------------------------------------------------------------O
 | MANDELBROT SET ITERATIONS COUNT                                               |
@@ -10,7 +9,7 @@ O-------------------------------------------------------------------------------
 
 # Mandelbrot set fractals
 @numba.njit(cache=True)
-def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
+def _iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
     # Get physical dimensions of the image
     img_size = img_iterations.shape[::-1]
     pix_size_x = (bounds_x[1] - bounds_x[0]) / img_size[0]
@@ -41,7 +40,7 @@ def iterations_mandelbrot_set(img_iterations, bounds_x, bounds_y, num_iter):
 
 # Mandelbrot set fractals - smooth iterations
 @numba.njit(cache=True)
-def iterations_mandelbrot_set_smooth(img_iterations, bounds_x, bounds_y, num_iter):
+def _iterations_mandelbrot_set_smooth(img_iterations, bounds_x, bounds_y, num_iter):
     # Get physical dimensions of the image
     img_size = img_iterations.shape[::-1]
     pix_size_x = (bounds_x[1] - bounds_x[0]) / img_size[0]
@@ -77,7 +76,7 @@ def iterations_mandelbrot_set_smooth(img_iterations, bounds_x, bounds_y, num_ite
 
 # Mandelbrot set fractals - parallel
 @numba.njit(cache=True, parallel=True)
-def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_iter):
+def _iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_iter):
     # Get physical dimensions of the image
     img_size = img_iterations.shape[::-1]
     pix_size_x = (bounds_x[1] - bounds_x[0]) / img_size[0]
@@ -108,7 +107,7 @@ def iterations_mandelbrot_set_parallel(img_iterations, bounds_x, bounds_y, num_i
 
 # Mandelbrot set fractals - smooth iterations & parallel
 @numba.njit(cache=True, parallel=True)
-def iterations_mandelbrot_set_smooth_parallel(img_iterations, bounds_x, bounds_y, num_iter):
+def _iterations_mandelbrot_set_smooth_parallel(img_iterations, bounds_x, bounds_y, num_iter):
     # Get physical dimensions of the image
     img_size = img_iterations.shape[::-1]
     pix_size_x = (bounds_x[1] - bounds_x[0]) / img_size[0]
@@ -148,16 +147,15 @@ O-------------------------------------------------------------------------------
 O-------------------------------------------------------------------------------O
 '''
 
-FUNCTION_ARRAY = [
-    iterations_mandelbrot_set,
-    iterations_mandelbrot_set_smooth,
-    iterations_mandelbrot_set_parallel,
-    iterations_mandelbrot_set_smooth_parallel
+_FUNCTION_ARRAY = [
+    _iterations_mandelbrot_set,
+    _iterations_mandelbrot_set_smooth,
+    _iterations_mandelbrot_set_parallel,
+    _iterations_mandelbrot_set_smooth_parallel
 ]
-# Wrapper function for Mandelbrot set fractals
-def IterationsMandelbrotSet(img_size, bounds_x, bounds_y, num_iter, smooth_iter=True, parallel=True):
+def iterations_mandelbrot_set(img_size, bounds_x, bounds_y, num_iter, smooth_iter=True, parallel=True):
     # Chose the correct mandelbrot function
-    func_iterations = FUNCTION_ARRAY[int(smooth_iter) + 2 * int(parallel)]
+    func_iterations = _FUNCTION_ARRAY[int(smooth_iter) + 2 * int(parallel)]
     # Convert the input to numpy arrays
     img_size = np.asarray(img_size).astype('int')
     bounds_x = np.asarray(bounds_x).astype('float')

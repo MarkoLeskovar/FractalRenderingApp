@@ -12,7 +12,7 @@ from .clock import ClockGLFW
 from .default_config import *
 from .render_text import RenderText
 from .render_texture import RenderTexture
-from .color import GetColormapArray
+from .color import get_colormap_array
 from .render_canvas import RenderCanvas
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
@@ -394,7 +394,7 @@ class FractalRenderingApp:
 
 
     def _set_cmap_buffer(self, cmap_name):
-        cmap = GetColormapArray(cmap_name).astype('float32')
+        cmap = get_colormap_array(cmap_name).astype('float32')
         # Create a buffer
         self.cmap_buffer = glGenBuffers(1)
         glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
@@ -405,7 +405,7 @@ class FractalRenderingApp:
 
 
     def _update_cmap_buffer(self, cmap_name):
-        cmap_array = GetColormapArray(cmap_name).astype('float32')
+        cmap_array = get_colormap_array(cmap_name).astype('float32')
         # Update OpenGL framebuffers
         glBindBuffer(GL_UNIFORM_BUFFER, self.cmap_buffer)
         glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
