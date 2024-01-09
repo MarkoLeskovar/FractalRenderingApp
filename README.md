@@ -1,5 +1,5 @@
-# FractalRendering
-Interactive app for visualization of the Mandelbrot Set written in Python and GLSL.  
+# Fractal Rendering App
+Interactive app for visualization of Mandelbrot and Julia sets written in Python and GLSL.  
 
 ![main_app.py](docs/main_app.gif)
 
@@ -9,9 +9,10 @@ Interactive app for visualization of the Mandelbrot Set written in Python and GL
 * GPU-accelerated rendering via OpenGL 4.0.
 * Double precision arithmetic with zoom up to 10^15.
 * Interactive panning and zooming with the mouse.
+* Interactive switching between Mandelbrot and Julia sets.
 * Arbitrary window resizing, full-screen and vsync support.
 * Automatic DPI-scaling and variable render size.
-* Fully customizable settings file.
+* Fully customizable configuration file.
 * 296 available colormaps.
 
 
@@ -68,19 +69,12 @@ you will find some of the most used keys.
 * Use `ARROW KEY LEFT` / `RIGHT` to change colormaps.
 * Use `+` / `-` to increase or decrease the number of fractal iterations.
 * Use `*` / `/` to increase or decrease the pixel scaling.
+* Use `J` to switch between fractal rendering modes.
+* Use `I` to switch between info text modes.
 * Use `R` to reset pan and zoom.
 * Use `S` to take a screenshot.
 * Use `F` to toggle fullscreen.
-* Use `I` to toggle info text.
 * Use `V` to toggle vsync.
-
-
-
-## Next Steps
-
-- [x] Interactive visualization of the Mandelbrot Set fractal.
-- [x] Create an executable file via PyInstaller.
-- [ ] Add Julia Set fractal rendering.
 
 
 ## Links
