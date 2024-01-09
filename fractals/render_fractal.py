@@ -16,7 +16,6 @@ from .color import get_colormap_array
 from .render_canvas import RenderCanvas
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
-
 '''
 O------------------------------------------------------------------------------O
 | MAIN OPENGL APP CLASS                                                        |
@@ -32,18 +31,18 @@ class FractalRenderingApp:
     def __init__(self, app_config=None, fractal_config=None, controls_config=None, output_dir=None, cmaps=None):
 
         # Set app configuration variables
-        self.app_cnfg = set_default_if_none(DEFAULT_APP_CONFIG, app_config)
-        self.controls_cnfg = set_default_if_none(DEFAULT_CONTROLS_CONFIG, controls_config)
-        self.fractal_cnfg = set_default_if_none(DEFAULT_FRACTAL_CONFIG, fractal_config)
+        self.app_config = set_default_if_none(DEFAULT_APP_CONFIG, app_config).copy()
+        self.controls_config = set_default_if_none(DEFAULT_CONTROLS_CONFIG, controls_config).copy()
+        self.fractal_config = set_default_if_none(DEFAULT_FRACTAL_CONFIG, fractal_config).copy()
         self.output_dir = set_default_if_none(DEFAULT_OUTPUT_DIR, output_dir)
-        self.cmaps = set_default_if_none(DEFAULT_CMAPS, cmaps)
+        self.cmaps = set_default_if_none(DEFAULT_CMAPS, cmaps).copy()
         self.cmap_id = 0
 
         # Initialize GLFW
         glfw.init()
         # Create GLFW window and set the icon
         self.window_vsync = True
-        window_size = (int(self.app_cnfg['WIN_WIDTH']), int(self.app_cnfg['WIN_HEIGHT']))
+        window_size = (int(self.app_config['WIN_WIDTH']), int(self.app_config['WIN_HEIGHT']))
         self.window = self._create_main_window(window_size, self.window_vsync)
         icon = Image.open(os.path.join(self.path_to_assets, 'mandelbrot.png')).resize((256, 256))
         glfw.set_window_icon(self.window, 1, icon)
@@ -52,39 +51,39 @@ class FractalRenderingApp:
         self.pix_scale = float(glfw.get_window_content_scale(self.window)[0])
         self.window_size = np.asarray(glfw.get_framebuffer_size(self.window)).astype('int')
 
-        # Create a render canvas
-        temp_range_x = (self.fractal_cnfg['MANDELBROT']['RANGE_X_MIN'], self.fractal_cnfg['MANDELBROT']['RANGE_X_MAX'])
-        canvas_1 = RenderCanvas((0, 0), self.window_size, self.pix_scale, temp_range_x)
-        canvas_1.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
-        canvas_1.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
+        # Create a Mandelbrot set render canvas
+        temp_range_x = (self.fractal_config['MANDELBROT']['RANGE_X_MIN'], self.fractal_config['MANDELBROT']['RANGE_X_MAX'])
+        self.canvas_mandelbrot = RenderCanvas((0, 0), self.window_size, self.pix_scale, temp_range_x)
+        self.canvas_mandelbrot.init()
+        self.canvas_mandelbrot.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        self.canvas_mandelbrot.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
 
-        # Create a render canvas
-        temp_range_x = (self.fractal_cnfg['JULIA']['RANGE_X_MIN'], self.fractal_cnfg['JULIA']['RANGE_X_MAX'])
-        temp_pos = np.ceil(0.7 * self.window_size)
-        temp_size = 0.3 * self.window_size
-        canvas_2 = RenderCanvas(temp_pos, temp_size, self.pix_scale, temp_range_x)
-        canvas_2.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
-        canvas_2.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
+        # Create a Julia set render canvas
+        temp_range_x = (self.fractal_config['JULIA']['RANGE_X_MIN'], self.fractal_config['JULIA']['RANGE_X_MAX'])
+        self.canvas_julia = RenderCanvas((0, 0), self.window_size, self.pix_scale, temp_range_x)
+        self.canvas_julia.init()
+        self.canvas_julia.add_framebuffer('ITER', GL_R32F, GL_RED, GL_FLOAT)
+        self.canvas_julia.add_framebuffer('COLOR', GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE)
 
-        # Create a canvas manager
-        self.canvas_dict = {'DEFAULT': RenderCanvas(), 'MANDELBROT': canvas_1, 'JULIA': canvas_2}
-
-        # Default configuration and active canvas
-        self.fractal_cnfg['DEFAULT'] = self.fractal_cnfg['MANDELBROT'].copy()
+        # Active canvas
+        self.fractal_id = 0
         self.active_canvas_name = 'MANDELBROT'
-        self.active_canvas = canvas_1
+        self.active_canvas = self.canvas_mandelbrot
 
         # Texture render class
         self.render_texture = RenderTexture()
+        self.render_texture.init()
 
         # Create GLFW clock
         self.clock = ClockGLFW()
 
         # Text render class
-        self.text_file = os.path.join(self.path_to_assets, self.app_cnfg['FONT_FILE'])
+        self.info_text_id = 2
+        self.text_file = os.path.join(self.path_to_assets, self.app_config['FONT_FILE'])
         self.render_text = RenderText()
-        self.render_text.set_font(self.text_file, self.app_cnfg['FONT_SIZE'] * self.pix_scale)
+        self.render_text.init()
         self.render_text.set_window_size(self.window_size)
+        self.render_text.set_font(self.text_file, self.app_config['FONT_SIZE'] * self.pix_scale)
 
         # Set GLFW callback functions
         self._set_callback_functions_glfw()
@@ -92,20 +91,18 @@ class FractalRenderingApp:
         # Read shader source code
         base_vert_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_base.vert'))
         color_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_color.frag'))
+        julia_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_julia.frag'))
         mandelbrot_frag_source = read_shader_source(os.path.join(self.path_to_shaders, 'fractal_mandelbrot.frag'))
 
         # Create shader programs
         self.program_color = create_shader_program(base_vert_source, color_frag_source)
-        self.program_julia = create_shader_program(base_vert_source, mandelbrot_frag_source)
+        self.program_julia = create_shader_program(base_vert_source, julia_frag_source)
         self.program_mandelbrot = create_shader_program(base_vert_source, mandelbrot_frag_source)
 
         # Get uniform locations
-        self.uniform_locations_color = get_uniform_locations(
-            self.program_color, ['num_iter'])
-        self.uniform_locations_julia = get_uniform_locations(
-            self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
-        self.uniform_locations_mandelbrot = get_uniform_locations(
-            self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
+        self.uniform_locations_color = get_uniform_locations( self.program_color, ['num_iter'])
+        self.uniform_locations_julia = get_uniform_locations( self.program_julia, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
+        self.uniform_locations_mandelbrot = get_uniform_locations(self.program_mandelbrot, ['pix_size', 'mouse_pos', 'range_x', 'range_y', 'num_iter'])
 
         # Create buffers
         self._set_cmap_buffer(self.cmaps[self.cmap_id])
@@ -122,17 +119,16 @@ class FractalRenderingApp:
             glfw.poll_events()
             self._process_hold_keys()
             # Update mouse pos
-            for canvas in self.canvas_dict.values():
-                canvas.update_mouse_pos()
+            self.canvas_julia.update_mouse_pos()
+            self.canvas_mandelbrot.update_mouse_pos()
 
 
     def close(self):
         # Delete custom classes
         self.render_text.delete()
         self.render_texture.delete()
-        self.canvas_dict['JULIA'].delete()
-        self.canvas_dict['DEFAULT'].delete()
-        self.canvas_dict['MANDELBROT'].delete()
+        self.canvas_julia.delete()
+        self.canvas_mandelbrot.delete()
         # Delete shader programs
         glDeleteProgram(self.program_color)
         glDeleteProgram(self.program_julia)
@@ -161,7 +157,6 @@ class FractalRenderingApp:
         self.keyboard_up_key_hold = False
         self.keyboard_down_key_hold = False
         self.mouse_left_button_hold = False
-        self.show_info_text = True
         # Window callback functions
         glfw.set_window_close_callback(self.window, self._callback_window_close)
         glfw.set_window_size_callback(self.window, self._callback_window_resize)
@@ -192,21 +187,23 @@ class FractalRenderingApp:
 
     def _callback_content_scale(self, window, scale_x, scale_y):
         self._update_window_size(self.window_size, scale_x)
-        self.render_text.set_font(self.text_file, self.app_cnfg['FONT_SIZE'] * self.pix_scale)
+        self.render_text.set_font(self.text_file, self.app_config['FONT_SIZE'] * self.pix_scale)
         self._render_call()
 
 
     def _callback_keyboad_button(self, window, key, scancode, action, mods):
         # Exit the app
-        if key == getattr(glfw, self.controls_cnfg['EXIT']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['EXIT']) and action == glfw.PRESS:
             self.window_open = False
 
         # Show into text
-        if key == getattr(glfw, self.controls_cnfg['INFO']) and action == glfw.PRESS:
-            self.show_info_text = not self.show_info_text
+        if key == getattr(glfw, self.controls_config['INFO']) and action == glfw.PRESS:
+            self.info_text_id += 1
+            if self.info_text_id > 3:
+                self.info_text_id = 0
 
         # Toggle fullscreen
-        if key == getattr(glfw, self.controls_cnfg['FULLSCREEN']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['FULLSCREEN']) and action == glfw.PRESS:
             # Make fullscreen
             if not self.window_fullscreen:
                 self.window_fullscreen = True
@@ -223,88 +220,98 @@ class FractalRenderingApp:
                                         self.window_size_previous[0], self.window_size_previous[1], glfw.DONT_CARE)
 
         # Increase number of iterations
-        if key == getattr(glfw, self.controls_cnfg['ITER_INCREASE']) and action == glfw.PRESS:
-            temp_dict = self.fractal_cnfg[self.active_canvas_name]
+        if key == getattr(glfw, self.controls_config['ITER_INCREASE']) and action == glfw.PRESS:
+            temp_dict = self.fractal_config[self.active_canvas_name]
             temp_num_iter = min(temp_dict['NUM_ITER'] + temp_dict['NUM_ITER_STEP'], temp_dict['NUM_ITER_MAX'])
-            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
+            self.fractal_config[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
         # Decrease number of iterations
-        if key == getattr(glfw, self.controls_cnfg['ITER_DECREASE']) and action == glfw.PRESS:
-            temp_dict = self.fractal_cnfg[self.active_canvas_name]
+        if key == getattr(glfw, self.controls_config['ITER_DECREASE']) and action == glfw.PRESS:
+            temp_dict = self.fractal_config[self.active_canvas_name]
             temp_num_iter = max(temp_dict['NUM_ITER'] - temp_dict['NUM_ITER_STEP'], temp_dict['NUM_ITER_MIN'])
-            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
+            self.fractal_config[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
         # Reset shift, scale and number of iterations
-        if key == getattr(glfw, self.controls_cnfg['RESET_VIEW']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['RESET_VIEW']) and action == glfw.PRESS:
             # Reset canvas areas
             self.active_canvas.reset_shift_and_scale()
             # Reset number of iterations
-            temp_num_iter = self.fractal_cnfg[self.active_canvas_name]['NUM_ITER_MIN']
-            self.fractal_cnfg[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
+            temp_num_iter = self.fractal_config[self.active_canvas_name]['NUM_ITER_MIN']
+            self.fractal_config[self.active_canvas_name]['NUM_ITER'] = int(temp_num_iter)
 
         # Increase pixel scale
-        if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_INCREASE']) and action == glfw.PRESS:
-            temp_pix_scale = self.pix_scale + self.app_cnfg['PIX_SCALE_STEP']
-            temp_pix_scale = min(temp_pix_scale, self.app_cnfg['PIX_SCALE_MAX'])
+        if key == getattr(glfw, self.controls_config['PIX_SCALE_INCREASE']) and action == glfw.PRESS:
+            temp_pix_scale = self.pix_scale + self.app_config['PIX_SCALE_STEP']
+            temp_pix_scale = min(temp_pix_scale, self.app_config['PIX_SCALE_MAX'])
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Decrease pixel scale
-        if key == getattr(glfw, self.controls_cnfg['PIX_SCALE_DECREASE']) and action == glfw.PRESS:
-            temp_pix_scale = self.pix_scale - self.app_cnfg['PIX_SCALE_STEP']
-            temp_pix_scale = max(temp_pix_scale, self.app_cnfg['PIX_SCALE_MIN'])
+        if key == getattr(glfw, self.controls_config['PIX_SCALE_DECREASE']) and action == glfw.PRESS:
+            temp_pix_scale = self.pix_scale - self.app_config['PIX_SCALE_STEP']
+            temp_pix_scale = max(temp_pix_scale, self.app_config['PIX_SCALE_MIN'])
             self._update_window_size(self.window_size, temp_pix_scale)
 
         # Hold zoom-in
-        if key == getattr(glfw, self.controls_cnfg['ZOOM_IN']):
+        if key == getattr(glfw, self.controls_config['ZOOM_IN']):
             if action == glfw.PRESS:
                 self.keyboard_up_key_hold = True
             elif action == glfw.RELEASE:
                 self.keyboard_up_key_hold = False
 
         # Hold zoom-out
-        if key == getattr(glfw, self.controls_cnfg['ZOOM_OUT']):
+        if key == getattr(glfw, self.controls_config['ZOOM_OUT']):
             if action == glfw.PRESS:
                 self.keyboard_down_key_hold = True
             elif action == glfw.RELEASE:
                 self.keyboard_down_key_hold = False
 
         # Next colormap
-        if key == getattr(glfw, self.controls_cnfg['CMAP_NEXT']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['CMAP_NEXT']) and action == glfw.PRESS:
             self.cmap_id += 1
             if self.cmap_id >= len(self.cmaps):
                 self.cmap_id = 0
             self._update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Previous colormap
-        if key == getattr(glfw, self.controls_cnfg['CMAP_PREV']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['CMAP_PREV']) and action == glfw.PRESS:
             self.cmap_id -= 1
             if self.cmap_id < 0:
                 self.cmap_id = len(self.cmaps) - 1
             self._update_cmap_buffer(self.cmaps[self.cmap_id])
 
         # Toggle vsync for uncapped frame rate
-        if key == getattr(glfw, self.controls_cnfg['VSYNC']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['VSYNC']) and action == glfw.PRESS:
             self.window_vsync = not self.window_vsync
             glfw.swap_interval(int(self.window_vsync))
 
         # Save a screenshot
-        if key == getattr(glfw, self.controls_cnfg['SCREENSHOT']) and action == glfw.PRESS:
+        if key == getattr(glfw, self.controls_config['SCREENSHOT']) and action == glfw.PRESS:
             os.makedirs(self.output_dir, exist_ok=True)
             # Get current screenshot counter
             counter = 1
             output_files = os.listdir(self.output_dir)
             if len(output_files) > 0:
-                temp_list = sorted([int(x.split('.')[0]) for x in output_files])
+                temp_list = sorted([int(out_file.split('.')[0]) for out_file in output_files])
                 counter = temp_list[-1] + 1
             # Read pixels and save the image
             output_image = self._read_pixels()
             image_pil = Image.fromarray(np.flipud(output_image))
             image_pil.save(os.path.join(self.output_dir, f'{counter}.png'))
 
+        # Switch between fractals
+        if key == getattr(glfw, self.controls_config['JULIA_SET']) and action == glfw.PRESS:
+            # Update fractal id
+            self.fractal_id += 1
+            if self.fractal_id > 2:
+                self.fractal_id = 0
+            # Update canvas
+            self._set_canvas_sizes()
+            self._set_canvas_settings()
+
 
     def _callback_mouse_button(self, window, button, action, mod):
         # Hold down the mouse button
-        if button == getattr(glfw, self.controls_cnfg['SHIFT_VIEW']):
+        if button == getattr(glfw, self.controls_config['SHIFT_VIEW']):
             if action == glfw.PRESS:
                 self.mouse_left_button_hold = True
             elif action == glfw.RELEASE:
@@ -323,14 +330,37 @@ class FractalRenderingApp:
 
 
     def _callback_cursor_position(self, window, x_pos, y_pos):
-        # Set mouse positions
-        for canvas in self.canvas_dict.values():
-            canvas.mouse_pos = (x_pos, y_pos)
-        # Get active canvas and its name
-        if (not self.mouse_left_button_hold) and (not self.keyboard_up_key_hold) and (not self.keyboard_down_key_hold):
-            # Get active canvas and its name
-            self.active_canvas_name = self._get_active_canvas_name()
-            self.active_canvas = self.canvas_dict[self.active_canvas_name]
+        self.canvas_mandelbrot.mouse_pos = (x_pos, y_pos)
+        self.canvas_julia.mouse_pos = (x_pos, y_pos)
+
+
+    def _set_canvas_sizes(self):
+        # Mandelbrot set
+        if self.fractal_id == 0:
+            self.canvas_mandelbrot.resize(self.window_size, self.pix_scale)
+        # Mandelbrot and Julia set
+        elif self.fractal_id == 1:
+            self.canvas_mandelbrot.resize(self.window_size, self.pix_scale)
+            self.canvas_julia.resize(0.3 * self.window_size, self.pix_scale)
+            self.canvas_julia.pos = np.ceil(0.7 * self.window_size)
+        # Julia set
+        elif self.fractal_id == 2:
+            self.canvas_julia.resize(self.window_size, self.pix_scale)
+            self.canvas_julia.pos = (0, 0)
+
+
+    def _set_canvas_settings(self):
+        # Mandelbrot set
+        if self.fractal_id == 0:
+            self.fractal_config['JULIA']['NUM_ITER'] = self.fractal_config['JULIA']['NUM_ITER_MIN']
+            self.canvas_julia.reset_shift_and_scale()
+            self.active_canvas = self.canvas_mandelbrot
+            self.active_canvas_name = 'MANDELBROT'
+        # Julia set
+        elif self.fractal_id == 2:
+            self.canvas_mandelbrot.reset_shift_and_scale()
+            self.active_canvas = self.canvas_julia
+            self.active_canvas_name = 'JULIA'
 
 
     def _process_hold_keys(self):
@@ -350,10 +380,8 @@ class FractalRenderingApp:
     def _update_window_size(self, size, pix_scale):
         self.window_size = np.asarray(size).astype('int')
         self.pix_scale = float(pix_scale)
-        # Resize canvases
-        self.canvas_dict['MANDELBROT'].resize(self.window_size, self.pix_scale)
-        self.canvas_dict['JULIA'].resize(0.3 * self.window_size, self.pix_scale)
-        self.canvas_dict['JULIA'].pos = np.ceil(0.7 * self.window_size)
+        # Resize all canvases
+        self._set_canvas_sizes()
 
 
     def _read_pixels(self):
@@ -361,13 +389,6 @@ class FractalRenderingApp:
         glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
         glReadPixels(0, 0, self.window_size[0], self.window_size[1], GL_RGB, GL_UNSIGNED_BYTE, image_array)
         return image_array.reshape((self.window_size[1], self.window_size[0], 3))
-
-
-    def _get_active_canvas_name(self):
-        for key, canvas in reversed(self.canvas_dict.items()):
-            if canvas.is_active():
-                return key
-        return 'DEFAULT'
 
 
     # O------------------------------------------------------------------------------O
@@ -411,22 +432,33 @@ class FractalRenderingApp:
         glBufferSubData(GL_UNIFORM_BUFFER, 0, cmap_array.nbytes, cmap_array)
 
 
-    def _get_info_text(self):
+    def _get_fractal_info_text(self):
         text = (
-            f'CMAP = {self.cmaps[self.cmap_id]}\n'
-            f'FPS = {int(np.round(self.clock.frame_rate))}\n'
-            f'SCALE = {self.pix_scale}\n'
+            f'FRACTAL = {self.active_canvas_name.lower()} set\n'
+            f'COLORS = {self.cmaps[self.cmap_id]}\n'
             f'WINDOW = {self.window_size[0]}x{self.window_size[1]}\n'
-            f'CANVAS = {self.active_canvas.size[0]}x{self.active_canvas.size[1]}\n'
             f'RENDER = {self.active_canvas.render_size[0]}x{self.active_canvas.render_size[1]}\n'
+            f'SCALE = {self.pix_scale}\n'
             f'ZOOM = {self.active_canvas.scale_rel:.2E}\n'
-            f'ITER = {self.fractal_cnfg[self.active_canvas_name]["NUM_ITER"]}\n'
+            f'ITER = {self.fractal_config[self.active_canvas_name]["NUM_ITER"]}\n'
+            f'FPS = {int(np.round(self.clock.frame_rate))}\n'
         )
         return text
 
 
-    def _render_fractal_program(self, canvas, gl_program, uniform_locations, num_iter):
+    def _get_mouse_info_text(self):
+        mouse_pos_w = self.active_canvas.s2w(self.active_canvas.mouse_pos)
+        text = (
+            f'MOUSE POS\n'
+            f'Re = {mouse_pos_w[0]: .15f}\n'
+            f'Im = {mouse_pos_w[1]: .15f}\n'
+        )
+        return text
 
+
+    def _render_fractal_program(self, canvas, gl_program, uniform_locations, mouse_pos_w, num_iter):
+        mouse_pos_w = np.asarray(mouse_pos_w)
+        
         # 00. VIEWPORT SIZE
         glViewport(0, 0, canvas.render_size[0], canvas.render_size[1])
 
@@ -434,7 +466,6 @@ class FractalRenderingApp:
         glBindFramebuffer(GL_FRAMEBUFFER, canvas.framebuffer['ITER'].id)
         glUseProgram(gl_program)
         # Send uniforms to the GPU
-        mouse_pos_w = canvas.s2w(canvas.mouse_pos)
         glUniform2dv(uniform_locations['mouse_pos'], 1, mouse_pos_w.astype('float64'))
         glUniform2dv(uniform_locations['range_x'], 1, canvas.range_x.astype('float64'))
         glUniform2dv(uniform_locations['range_y'], 1, canvas.range_y.astype('float64'))
@@ -460,28 +491,33 @@ class FractalRenderingApp:
 
     def _render_call(self):
 
-        # Get canvases and number of iterations
-        canvas_1 = self.canvas_dict['MANDELBROT']
-        canvas_2 = self.canvas_dict['JULIA']
-        num_iter_1 = self.fractal_cnfg['MANDELBROT']['NUM_ITER']
-        num_iter_2 = self.fractal_cnfg['JULIA']['NUM_ITER']
-
         # Clear the screen
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
         glClearColor(0.0, 0.5, 0.5, 1.0)
         glClear(GL_COLOR_BUFFER_BIT)
 
-        # Render Mandelbrot set to texture
-        self._render_fractal_program(canvas_1, self.program_mandelbrot, self.uniform_locations_mandelbrot, num_iter_1)
-        self._render_fractal_program(canvas_2, self.program_julia, self.uniform_locations_julia, num_iter_2)
+        # Update fractal constant
+        if self.fractal_id == 1:
+            self.fractal_constant = self.canvas_mandelbrot.s2w(self.canvas_mandelbrot.mouse_pos)
 
-        # Render texture to screen to screen
-        self.render_texture(self.window_size, canvas_1.pos, canvas_1.size, canvas_1.framebuffer['COLOR'].tex_id)
-        self.render_texture(self.window_size, canvas_2.pos, canvas_2.size, canvas_2.framebuffer['COLOR'].tex_id)
+        # Render Mandelbrot set
+        if self.fractal_id == 0 or self.fractal_id == 1:
+            num_iter = self.fractal_config['MANDELBROT']['NUM_ITER']
+            self._render_fractal_program(self.canvas_mandelbrot, self.program_mandelbrot, self.uniform_locations_mandelbrot, (0, 0), num_iter)
+            self.render_texture(self.window_size, self.canvas_mandelbrot.pos, self.canvas_mandelbrot.size, self.canvas_mandelbrot.framebuffer['COLOR'].tex_id)
 
-        # Render text to screen
-        if self.show_info_text:
-            self.render_text.draw_text(self._get_info_text(), (10, 8), 1.0, (255, 255, 255))
+        # Render Julia set
+        if self.fractal_id == 1 or self.fractal_id == 2:
+            num_iter = self.fractal_config['JULIA']['NUM_ITER']
+            self._render_fractal_program(self.canvas_julia, self.program_julia, self.uniform_locations_julia, self.fractal_constant, num_iter)
+            self.render_texture(self.window_size, self.canvas_julia.pos, self.canvas_julia.size, self.canvas_julia.framebuffer['COLOR'].tex_id)
+
+        # Render into text to screen
+        if self.info_text_id == 1 or self.info_text_id == 2:
+            self.render_text(self._get_fractal_info_text(), (10, 8), 1.0, (255, 255, 255))
+        if self.info_text_id == 2 or self.info_text_id == 3:
+            temp_pos_y = self.window_size[1] - 3 * self.render_text.font_size - 8
+            self.render_text(self._get_mouse_info_text(), (10, temp_pos_y), 1.0, (255, 255, 255))
 
         # Swap buffers and update timings
         glfw.swap_buffers(self.window)

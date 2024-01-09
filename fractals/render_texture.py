@@ -19,12 +19,17 @@ O------------------------------------------------------------------------------O
 class RenderTexture:
 
     # "Static" variable
-    path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')
+    _path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')
 
     def __init__(self):
+        pass
+
+
+    def init(self):
         self._set_shader_program()
         self._set_uniform_locations()
         self._set_vertex_buffer()
+
 
     def __call__(self, win_size, tex_pos, tex_size, tex_id):
         win_size = np.asarray(win_size).astype('int')
@@ -70,8 +75,8 @@ class RenderTexture:
 
     def _set_shader_program(self):
         # Read shader source code
-        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'texture_render.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'texture_render.frag'))
+        vertex_shader_source = read_shader_source(os.path.join(self._path_to_shaders, 'texture_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(self._path_to_shaders, 'texture_render.frag'))
         # Create a shader program
         self._shader_program = create_shader_program(vertex_shader_source, fragment_shader_source)
         glUseProgram(self._shader_program)

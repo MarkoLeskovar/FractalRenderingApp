@@ -33,7 +33,7 @@ class Framebuffer:
     def tex_id(self):
         return self._tex_id
 
-    def initialize(self):
+    def init(self):
         if self._fbo_id is not None:
             raise ValueError('Framebuffer is already initialized!')
         # Create a framebuffer object

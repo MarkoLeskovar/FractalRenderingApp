@@ -6,7 +6,7 @@ import numpy as np
 from OpenGL.GL import *
 
 # Add python modules
-from .shader_utils import  texture_transform_mat, ortho_transform_mat
+from .shader_utils import texture_transform_mat, ortho_transform_mat
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
 
 
@@ -19,7 +19,7 @@ O------------------------------------------------------------------------------O
 class RenderText:
 
     # "Static" variable
-    path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')
+    _path_to_shaders = os.path.join(os.path.dirname(__file__), 'shaders')
 
     def __init__(self):
         # Initialize empty variables
@@ -28,16 +28,8 @@ class RenderText:
         self._font_size = None
         self._font_texture_size = None
         self._font_texture_array = None
+        self._max_instances = 0
         self._characters = {}
-        # Determine maximum number of instances from uniform block size
-        self._max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
-        # Create shader program
-        self._set_shader_program()
-        self._set_uniform_locations()
-        # Set buffers
-        self._set_vertex_buffer()
-        self._set_trans_mat_buffer()
-        self._set_char_id_buffer()
 
 
     # O------------------------------------------------------------------------------O
@@ -56,6 +48,18 @@ class RenderText:
     # O------------------------------------------------------------------------------O
     # | PUBLIC - TEXT MANIPULATION FUNCTIONS                                         |
     # O------------------------------------------------------------------------------O
+
+    def init(self):
+        # Determine maximum number of instances from uniform block size
+        self._max_instances = int(glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE) / 64)  # mat4 -> 64 bytes
+        # Create shader program
+        self._set_shader_program()
+        self._set_uniform_locations()
+        # Set buffers
+        self._set_vertex_buffer()
+        self._set_trans_mat_buffer()
+        self._set_char_id_buffer()
+
 
     def set_window_size(self, size):
         self._window_size = np.asarray(size).astype('int')
@@ -106,7 +110,7 @@ class RenderText:
             self._characters[chr(i)] = CharacterSlot(i, face.glyph)
 
 
-    def draw_text(self, text, pos, scale, color):
+    def __call__(self, text, pos, scale, color):
         pos = np.asarray(pos)
         color = np.asarray(color) / 255.0
 
@@ -186,8 +190,8 @@ class RenderText:
 
     def _set_shader_program(self):
         # Read shader source code
-        vertex_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.vert'))
-        fragment_shader_source = read_shader_source(os.path.join(self.path_to_shaders, 'text_render.frag'))
+        vertex_shader_source = read_shader_source(os.path.join(self._path_to_shaders, 'text_render.vert'))
+        fragment_shader_source = read_shader_source(os.path.join(self._path_to_shaders, 'text_render.frag'))
         # Dynamically modify the shader source code before compilation
         vertex_shader_source = vertex_shader_source.replace('INSERT_NUM_INSTANCES', str(self._max_instances))
         fragment_shader_source = fragment_shader_source.replace('INSERT_NUM_INSTANCES', str(self._max_instances))
@@ -261,7 +265,7 @@ O------------------------------------------------------------------------------O
 
 class CharacterSlot:
 
-    def __init__(self, ascii_id, glyph):
+    def __init__(self, ascii_id: int, glyph: freetype.Glyph):
         self.ascii_id = ascii_id                              # ID of the ASCII character
         self.size = (glyph.bitmap.width, glyph.bitmap.rows)   # Size of glyph
         self.bearing = (glyph.bitmap_left, glyph.bitmap_top)  # Offset from the baseline to left/top of glyph
