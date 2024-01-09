@@ -9,30 +9,39 @@
         "PIX_SCALE_STEP":       0.25
     },
     "CONTROLS": {
-        "CMAP_NEXT":            "KEY_RIGHT",
-        "CMAP_PREV":            "KEY_LEFT",
         "EXIT":                 "KEY_ESCAPE",
-        "FULLSCREEN":           "KEY_F",
         "INFO":                 "KEY_I",
-        "ITER_DECREASE":        "KEY_KP_SUBTRACT",
+        "VSYNC":                "KEY_V",
+        "FULLSCREEN":           "KEY_F",
+        "SCREENSHOT":           "KEY_S",
+        "ZOOM_IN":              "KEY_UP",
+        "ZOOM_OUT":             "KEY_DOWN",
+        "SHIFT_VIEW":           "MOUSE_BUTTON_LEFT",
+        "RESET_VIEW":           "KEY_R",
         "ITER_INCREASE":        "KEY_KP_ADD",
+        "ITER_DECREASE":        "KEY_KP_SUBTRACT",
         "PIX_SCALE_DECREASE":   "KEY_KP_DIVIDE",
         "PIX_SCALE_INCREASE":   "KEY_KP_MULTIPLY",
-        "RESET_VIEW":           "KEY_R",
-        "SCREENSHOT":           "KEY_S",
-        "SHIFT_VIEW":           "MOUSE_BUTTON_LEFT",
-        "VSYNC":                "KEY_V",
-        "ZOOM_IN":              "KEY_UP",
-        "ZOOM_OUT":             "KEY_DOWN"
+        "CMAP_NEXT":            "KEY_RIGHT",
+        "CMAP_PREV":            "KEY_LEFT",
+        "JULIA_SET":            "KEY_J"
     },
     "FRACTAL": {
         "MANDELBROT": {
             "NUM_ITER":         64,
-            "NUM_ITER_MAX":     2048,
             "NUM_ITER_MIN":     64,
+            "NUM_ITER_MAX":     2048,
             "NUM_ITER_STEP":    32,
-            "RANGE_X_MAX":      1.0,
-            "RANGE_X_MIN":      -2.0
+            "RANGE_X_MIN":      -2.0,
+            "RANGE_X_MAX":      1.0
+        },
+        "JULIA": {
+            "NUM_ITER":         64,
+            "NUM_ITER_MIN":     64,
+            "NUM_ITER_MAX":     2048,
+            "NUM_ITER_STEP":    32,
+            "RANGE_X_MIN":      -2.0,
+            "RANGE_X_MAX":      2.0
         }
     },
     "CMAPS_FILE": "cmaps_diverging.txt"

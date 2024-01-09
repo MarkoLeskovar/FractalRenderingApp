@@ -11,11 +11,12 @@ __all__ = [
 DEFAULT_APP_CONFIG = {
         'WIN_WIDTH':            800,
         'WIN_HEIGHT':           600,
+        'FONT_SIZE':            20,
+        'FONT_FILE':            "NotoMono-Regular.ttf",
         'PIX_SCALE_MIN':        0.5,
         'PIX_SCALE_MAX':        8.0,
         'PIX_SCALE_STEP':       0.25,
-        'FONT_SIZE':            20,
-        'FONT_FILE':            "NotoMono-Regular.ttf",
+
 }
 
 DEFAULT_CONTROLS_CONFIG = {
@@ -34,16 +35,25 @@ DEFAULT_CONTROLS_CONFIG = {
     'PIX_SCALE_DECREASE':   'KEY_KP_DIVIDE',
     'CMAP_NEXT':            'KEY_RIGHT',
     'CMAP_PREV':            'KEY_LEFT',
+    'JULIA_SET':            'KEY_J'
 }
 
 DEFAULT_FRACTAL_CONFIG = {
     'MANDELBROT': {
-        'RANGE_X_MIN':     -2.0,
-        'RANGE_X_MAX':      1.0,
         'NUM_ITER':         64,
         'NUM_ITER_MIN':     64,
         'NUM_ITER_MAX':     2048,
         'NUM_ITER_STEP':    32,
+        'RANGE_X_MIN':      -2.0,
+        'RANGE_X_MAX':      1.0,
+    },
+    'JULIA': {
+        'NUM_ITER':         64,
+        'NUM_ITER_MIN':     64,
+        'NUM_ITER_MAX':     2048,
+        'NUM_ITER_STEP':    32,
+        'RANGE_X_MIN':      -2.0,
+        'RANGE_X_MAX':      2.0,
     }
 }
 
