@@ -56,7 +56,7 @@ The app can also be used without installing a Python interpreter or any module. 
 [`main_install.py`](install/main_install.py) or simply download the 
 pre-build package from the link bellow:   
 
-* [FractalRendering.zip](https://sourceforge.net/projects/fractalrendering/files/) 
+* [FractalRenderingApp.zip](https://sourceforge.net/projects/fractalrendering/files/) 
 for Windows 10/11 x64.
 
 
