@@ -353,6 +353,7 @@ class FractalRenderingApp:
         # Mandelbrot set
         if self.fractal_id == 0:
             self.fractal_config['JULIA']['NUM_ITER'] = self.fractal_config['JULIA']['NUM_ITER_MIN']
+            self.fractal_config['MANDELBROT']['NUM_ITER'] = self.fractal_config['MANDELBROT']['NUM_ITER_MIN']
             self.canvas_julia.reset_shift_and_scale()
             self.active_canvas = self.canvas_mandelbrot
             self.active_canvas_name = 'MANDELBROT'
