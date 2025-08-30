@@ -1,0 +1,57 @@
+import os
+
+__all__ = ['DEFAULT']
+
+class DEFAULT:
+    window_config = {
+        'WIDTH':                800,
+        'HEIGHT':               600,
+        'FONT_SIZE':            20,
+        'FONT_FILE':            'NotoMono-Regular.ttf',
+        'SCALE_MIN':            0.5,
+        'SCALE_MAX':            8.0,
+        'SCALE_STEP':           0.25,
+    }
+    controls_config = {
+        'EXIT':                 'KEY_ESCAPE',
+        'INFO':                 'I',
+        'VSYNC':                'V',
+        'FULLSCREEN':           'F',
+        'SCREENSHOT':           'S',
+        'ZOOM_IN':              'KEY_UP',
+        'ZOOM_OUT':             'KEY_DOWN',
+        'RESET_VIEW':           'R',
+        'ITER_INCREASE':        '+',
+        'ITER_DECREASE':        '-',
+        'SCALE_INCREASE':       '*',
+        'SCALE_DECREASE':       '/',
+        'CMAP_NEXT':            'KEY_RIGHT',
+        'CMAP_PREV':            'KEY_LEFT',
+        'JULIA_SET':            'J'
+    }
+    fractal_config = {
+        'MANDELBROT': {
+            'N_ITER':           64,
+            'N_ITER_MIN':       64,
+            'N_ITER_MAX':       2048,
+            'N_ITER_STEP':      32,
+            'RANGE_X_MIN':      -2.0,
+            'RANGE_X_MAX':      1.0,
+        },
+        'JULIA': {
+            'N_ITER':           64,
+            'N_ITER_MIN':       64,
+            'N_ITER_MAX':       2048,
+            'N_ITER_STEP':      32,
+            'RANGE_X_MIN':      -2.0,
+            'RANGE_X_MAX':      2.0,
+        }
+    }
+    cmaps = [
+        'balance',
+        'cet_l_tritanopic_krjcw1_r',
+        'cet_l_protanopic_deuteranopic_kbw_r',
+        'jungle_r',
+        'apple_r'
+    ]
+    output_dir = os.path.join(os.path.expanduser("~"), 'Pictures', 'FractalRendering')
