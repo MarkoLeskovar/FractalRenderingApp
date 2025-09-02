@@ -23,6 +23,8 @@ class Canvas:
         # Initialize mouse position
         self._mouse_pos = np.asarray([0, 0], dtype='float')
         self._mouse_pos_previous = self._mouse_pos.copy()
+        # Updating
+        self._needs_update = True
 
 
     # O------------------------------------------------------------------------------O
@@ -30,37 +32,44 @@ class Canvas:
     # O------------------------------------------------------------------------------O
 
     @property
-    def size(self):
+    def size(self) -> np.ndarray:
         return self._size
 
     @property
-    def range_x(self):
+    def range_x(self) -> np.ndarray:
         return self._range_x
 
     @property
-    def range_y(self):
+    def range_y(self) -> np.ndarray:
         return self._range_y
 
     @property
-    def scale_abs(self):
+    def scale_abs(self) -> float:
         return self._scale_abs
 
     @property
-    def scale_rel(self):
+    def scale_rel(self) -> float:
         return self._scale_abs / self._scale_abs_default
 
     @property
-    def scale_step(self):
+    def scale_step(self) -> float:
         return self._scale_abs_step
 
     @property
-    def mouse_pos(self):
+    def mouse_pos(self) -> np.ndarray:
         return self._mouse_pos
 
     @mouse_pos.setter
-    def mouse_pos(self, pos):
-        self._mouse_pos = np.asarray(pos).astype('float')
+    def mouse_pos(self, value):
+        self._mouse_pos = np.asarray(value).astype('float')
 
+    @property
+    def needs_update(self) -> bool:
+        return self._needs_update
+
+    @needs_update.setter
+    def needs_update(self, value):
+        self._needs_update = bool(value)
 
     # O------------------------------------------------------------------------------O
     # | PUBLIC - CANVAS UPDATING                                                     |
@@ -70,6 +79,7 @@ class Canvas:
         self._shift = self._shift_default.copy()
         self._scale_abs = self._scale_abs_default
         self._range_x, self._range_y = self._get_range_xy()
+        self._needs_update = True
 
     def resize(self, size):
         range_x_previous, range_y_previous = self._get_range_xy()
@@ -77,11 +87,13 @@ class Canvas:
         self._shift_default, self._scale_abs_default = self._get_shift_and_scale(self._range_x_default, (0.0, 0.0))
         self._shift, self._scale_abs = self._get_shift_and_scale(range_x_previous, range_y_previous)
         self._range_x, self._range_y = self._get_range_xy()
+        self._needs_update = True
 
     def update_shift(self):
         delta_shift = self._mouse_pos - self._mouse_pos_previous
         self._shift += delta_shift
         self._range_x, self._range_y = self._get_range_xy()
+        self._needs_update = True
 
     def increase_scale(self, scale_step):
         mouse_pos_w_start = self.s2w(self._mouse_pos)  # Starting position for the mouse
@@ -90,6 +102,7 @@ class Canvas:
             self._scale_abs = self._scale_rel_max * self._scale_abs_default  # Max zoom
         self._shift += self._mouse_pos - self.w2s(mouse_pos_w_start)  # Correct position by panning
         self._range_x, self._range_y = self._get_range_xy()
+        self._needs_update = True
 
     def decrease_scale(self, scale_step):
         mouse_pos_w_start = self.s2w(self._mouse_pos)  # Starting position for the mouse
@@ -98,6 +111,7 @@ class Canvas:
             self._scale_abs = self._scale_rel_min * self._scale_abs_default  # Min zoom
         self._shift += self._mouse_pos - self.w2s(mouse_pos_w_start)  # Correct position by panning
         self._range_x, self._range_y = self._get_range_xy()
+        self._needs_update = True
 
     def update_mouse_pos(self):
         self._mouse_pos_previous = self._mouse_pos.copy()
