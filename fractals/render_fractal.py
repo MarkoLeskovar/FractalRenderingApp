@@ -15,6 +15,7 @@ from .render_texture import RenderTexture
 from .color import get_colormap_array
 from .render_canvas import RenderCanvas
 from .shader_utils import create_shader_program, read_shader_source, get_uniform_locations
+from .fractals import _evaluate_point_smooth
 
 '''
 O------------------------------------------------------------------------------O
@@ -22,9 +23,7 @@ O------------------------------------------------------------------------------O
 O------------------------------------------------------------------------------O
 '''
 
-# TODO : Implement support for user-defined max framerate !!
 # TODO : Keep zooming speed consistent when switching between high and low framerate !!
-# TODO : Add support to display the number of iterations under the mouse cursor !!
 
 class FractalRenderingApp:
 
@@ -461,6 +460,18 @@ class FractalRenderingApp:
     # | OPENGL FUNCTIONS                                                             |
     # O------------------------------------------------------------------------------O
 
+    def _evaluate_iter_at_mouse_pos(self):
+        canvas = self.canvas_list[self.canvas_id]
+        mouse_pos_w = canvas.s2w(canvas.mouse_pos)
+        max_iter = self.fractal_config[self.canvas_names[self.canvas_id]]["N_ITER"]
+        if self.canvas_id == 0:
+            return _evaluate_point_smooth(0.0, 0.0, mouse_pos_w[0], mouse_pos_w[1], max_iter)
+        elif self.canvas_id == 1:
+            return _evaluate_point_smooth(mouse_pos_w[0], mouse_pos_w[1], self.fractal_const[0], self.fractal_const[1], max_iter)
+        else:
+            return 0.0
+
+
     def _set_cmap_buffer(self, cmap_name):
         cmap = get_colormap_array(cmap_name).astype('float32')
         # Create a buffer
@@ -489,7 +500,7 @@ class FractalRenderingApp:
             f'RENDER = {canvas.render_size[0]}x{canvas.render_size[1]}\n'
             f'SCALE = {self.pix_scale}\n'
             f'ZOOM = {canvas.scale_rel:.2E}\n'
-            f'ITER = {self.fractal_config[canvas_name]["N_ITER"]}\n'
+            f'IMAX = {self.fractal_config[canvas_name]["N_ITER"]}\n'
             f'FPS = {int(np.round(self.clock.frame_rate))}\n'
         )
         return text
@@ -499,7 +510,7 @@ class FractalRenderingApp:
         canvas = self.canvas_list[self.canvas_id]
         mouse_pos_w = canvas.s2w(canvas.mouse_pos)
         text = (
-            f'MOUSE POS\n'
+            f'ITER = {self._evaluate_iter_at_mouse_pos():.2f}\n'
             f'Re = {mouse_pos_w[0]: .15f}\n'
             f'Im = {mouse_pos_w[1]: .15f}\n'
         )
@@ -555,20 +566,20 @@ class FractalRenderingApp:
 
         # Update fractal constant
         if self.render_mode_id == 1:
-            self.fractal_constant = self.canvas_list[0].s2w(self.canvas_list[0].mouse_pos)
+            self.fractal_const = self.canvas_list[0].s2w(self.canvas_list[0].mouse_pos)
 
         # Render Mandelbrot set
         if self.render_mode_id == 0 or self.render_mode_id == 1:
             if self.canvas_list[0].needs_update:
                 num_iter = self.fractal_config['MANDELBROT']['N_ITER']
-                self._render_fractal_program(self.canvas_list[0], self.program_mandel, self.uniforms_mandel, (0, 0), num_iter)
+                self._render_fractal_program(self.canvas_list[0], self.program_mandel, self.uniforms_mandel, (0.0, 0.0), num_iter)
             self.render_texture(self.window_size, self.canvas_list[0].pos, self.canvas_list[0].size, self.canvas_list[0].framebuffer['COLOR'].tex_id)
 
         # Render Julia set
         if self.render_mode_id == 1 or self.render_mode_id == 2:
             if self.canvas_list[1].needs_update:
                 num_iter = self.fractal_config['JULIA']['N_ITER']
-                self._render_fractal_program(self.canvas_list[1], self.program_julia, self.uniforms_julia, self.fractal_constant, num_iter)
+                self._render_fractal_program(self.canvas_list[1], self.program_julia, self.uniforms_julia, self.fractal_const, num_iter)
             self.render_texture(self.window_size, self.canvas_list[1].pos, self.canvas_list[1].size, self.canvas_list[1].framebuffer['COLOR'].tex_id)
 
         # Render into text to screen
